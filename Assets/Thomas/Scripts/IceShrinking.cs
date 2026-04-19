@@ -1,4 +1,6 @@
+using Unity.Services.Multiplayer;
 using UnityEngine;
+using XRMultiplayer;
 
 public class IceShrinking : MonoBehaviour
 {
