@@ -5006,8 +5006,8 @@ Transform:
   m_GameObject: {fileID: 1239528217}
   serializedVersion: 2
   m_LocalRotation: {x: 0.5, y: 0.5, z: -0.5, w: 0.5}
-  m_LocalPosition: {x: -349.2658, y: 687.8406, z: 96.51785}
-  m_LocalScale: {x: 737.1671, y: 1143.626, z: 21.888481}
+  m_LocalPosition: {x: -349.2658, y: 687.8406, z: 96.518}
+  m_LocalScale: {x: 947.62836, y: 1258.103, z: 21.888481}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1434154484}
@@ -5038,17 +5038,17 @@ PrefabInstance:
     - target: {fileID: -8679921383154817045, guid: 90bfe3004a486bb44b4b1fae5ff23539,
         type: 3}
       propertyPath: m_LocalPosition.x
-      value: -288.1
+      value: 136.2
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 90bfe3004a486bb44b4b1fae5ff23539,
         type: 3}
       propertyPath: m_LocalPosition.y
-      value: 172.1
+      value: 97.2
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 90bfe3004a486bb44b4b1fae5ff23539,
         type: 3}
       propertyPath: m_LocalPosition.z
-      value: 81.2
+      value: -131.1
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 90bfe3004a486bb44b4b1fae5ff23539,
         type: 3}
@@ -5783,7 +5783,7 @@ Light:
   serializedVersion: 12
   m_Type: 1
   m_Color: {r: 1, g: 0.9619013, b: 0.85849047, a: 1}
-  m_Intensity: 1
+  m_Intensity: 2.18
   m_Range: 10
   m_SpotAngle: 30
   m_InnerSpotAngle: 21.80208
@@ -7601,6 +7601,11 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -8805276105180046269, guid: d86f06e1164681f42aa8d69dfb5c9459,
+        type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 01f92ecad7a8bb0409e05666438f44ab, type: 2}
     - target: {fileID: -8679921383154817045, guid: d86f06e1164681f42aa8d69dfb5c9459,
         type: 3}
       propertyPath: m_LocalScale.x
@@ -7671,6 +7676,11 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: -6043621648453113933, guid: d86f06e1164681f42aa8d69dfb5c9459,
+        type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 01f92ecad7a8bb0409e05666438f44ab, type: 2}
     - target: {fileID: 919132149155446097, guid: d86f06e1164681f42aa8d69dfb5c9459,
         type: 3}
       propertyPath: m_Name
