@@ -1,3 +1,4 @@
+using Unity.Netcode;
 using Unity.Services.Multiplayer;
 using UnityEngine;
 using XRMultiplayer;
@@ -20,6 +21,7 @@ public class IceShrinking : MonoBehaviour
 
     void Update()
     {
+
         // Check if flashlight hasn't hit recently
         if (Time.time - lastHitTime > hitTimeout)
         {
@@ -43,6 +45,7 @@ public class IceShrinking : MonoBehaviour
                 }
             }
         }
+        
     }
 
     // Called by the Flashlight script when raycast hits this object
