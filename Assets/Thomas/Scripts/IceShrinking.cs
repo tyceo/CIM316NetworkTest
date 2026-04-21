@@ -38,6 +38,8 @@ public class IceShrinking : MonoBehaviour
             if (transform.localScale.x <= minScale)
             {
                 transform.localScale = Vector3.one * minScale;
+
+                
                 
                 if (destroyWhenMinimum)
                 {
