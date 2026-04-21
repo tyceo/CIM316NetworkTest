@@ -44,6 +44,7 @@ PlayerSettings:
     duration: 2
   m_VirtualRealitySplashScreen: {fileID: 2800000, guid: f5a15390074cab046ad1cccb172aca37,
     type: 3}
+  m_HolographicTrackingLossScreen: {fileID: 0}
   defaultScreenWidth: 1024
   defaultScreenHeight: 768
   defaultScreenWidthWeb: 960
@@ -147,13 +148,17 @@ PlayerSettings:
   visionOSBundleVersion: 1.0
   tvOSBundleVersion: 1.0
   bundleVersion: 0.0.1
-  preloadedAssets: []
+  preloadedAssets:
+  - {fileID: -6283244721492138042, guid: e3aee76b9372917449aef639e2f74814, type: 2}
+  - {fileID: -799144910338680681, guid: 87b413c5a910b15498a98200731b1754, type: 2}
   metroInputSource: 0
   wsaTransparentSwapchain: 0
+  m_HolographicPauseOnTrackingLoss: 1
   xboxOneDisableKinectGpuReservation: 1
   xboxOneEnable7thCore: 1
   vrSettings:
     enable360StereoCapture: 0
+  isWsaHolographicRemotingEnabled: 0
   enableFrameTimingStats: 0
   enableOpenGLProfilerGPURecorders: 1
   allowHDRDisplaySupport: 0
@@ -968,7 +973,6 @@ PlayerSettings:
   captureStartupLogs: {}
   activeInputHandler: 1
   windowsGamepadBackendHint: 0
-  enableDirectStorage: 0
   cloudProjectId: 194f99cd-da44-4570-abdb-9ba208dda065
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []

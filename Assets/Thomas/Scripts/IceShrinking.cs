@@ -49,7 +49,7 @@ public class IceShrinking : NetworkBehaviour
                     //XRINetworkGameManager.Instance.Disconnect();
                     if (!IsOwner) return;
 
-                    UnityEditor.EditorApplication.isPlaying = false;
+                    //UnityEditor.EditorApplication.isPlaying = false;
                     Application.Quit();
 
 
