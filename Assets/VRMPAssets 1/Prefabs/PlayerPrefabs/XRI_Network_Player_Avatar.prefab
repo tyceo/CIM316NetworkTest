@@ -447,9 +447,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 979c12f9193b687488e0f6123abff198, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::IceShrinking
+  ShowTopMostFoldoutHeaderGroup: 1
   shrinkSpeed: 0.5
   minScale: 0.1
-  destroyWhenMinimum: 0
+  destroyWhenMinimum: 1
 --- !u!1 &2678264962581298302
 GameObject:
   m_ObjectHideFlags: 0
@@ -934,6 +935,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 979c12f9193b687488e0f6123abff198, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::IceShrinking
+  ShowTopMostFoldoutHeaderGroup: 1
   shrinkSpeed: 0.5
   minScale: 0.1
   destroyWhenMinimum: 0

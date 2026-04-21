@@ -3,7 +3,7 @@ using Unity.Services.Multiplayer;
 using UnityEngine;
 using XRMultiplayer;
 
-public class IceShrinking : MonoBehaviour
+public class IceShrinking : NetworkBehaviour
 {
     [SerializeField] private float shrinkSpeed = 0.5f;
     [SerializeField] private float minScale = 0.1f;
@@ -44,6 +44,15 @@ public class IceShrinking : MonoBehaviour
                 if (destroyWhenMinimum)
                 {
                     Destroy(gameObject);
+                    //NetworkManager.Singleton.Shutdown();
+                    //XRINetworkGameManager.Disconnect();
+                    //XRINetworkGameManager.Instance.Disconnect();
+                    if (!IsOwner) return;
+
+                    UnityEditor.EditorApplication.isPlaying = false;
+                    Application.Quit();
+
+
                 }
             }
         }
