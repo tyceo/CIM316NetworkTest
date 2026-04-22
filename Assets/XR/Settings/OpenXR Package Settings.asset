@@ -412,7 +412,7 @@ MonoBehaviour:
   nameUi: 'Android XR: AR Anchor'
   version: 0.1.0
   featureIdInternal: com.unity.openxr.feature.arfoundation-androidxr-anchor
-  openxrExtensionStrings: XR_ANDROID_trackables
+  openxrExtensionStrings: XR_ANDROID_trackables XR_ANDROID_device_anchor_persistence
   company: Unity Technologies
   priority: 0
   targetOpenXRApiVersion: 
@@ -904,7 +904,6 @@ MonoBehaviour:
   targetOpenXRApiVersion: 
   required: 0
   customRuntimeLoaderName: 
-  m_UseRightHandedNDC: 0
 --- !u!114 &-902117239244671484
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -943,18 +942,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   features:
   - {fileID: 6872103178974711338}
-  - {fileID: -320810165285059146}
-  - {fileID: 8005772624317945113}
   - {fileID: -6054322832879294178}
-  - {fileID: 3279485027523124439}
-  - {fileID: 4695030668188305362}
-  - {fileID: -2979976306864099509}
   - {fileID: -5516234243386168576}
-  - {fileID: 5145858227168367655}
-  - {fileID: -6540300347793558051}
-  - {fileID: -7448188799294236841}
-  - {fileID: 3856363534945843850}
-  - {fileID: 5715080097940366490}
   - {fileID: 6851946733972182505}
   - {fileID: 2123424781130391193}
   - {fileID: -8901900931313660571}
@@ -991,7 +980,6 @@ MonoBehaviour:
   m_multiviewRenderRegionsOptimizationMode: 0
   m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 0
-  m_useOpenXRPredictedTime: 0
 --- !u!114 &-721402611814402280
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1415,7 +1403,6 @@ MonoBehaviour:
   - {fileID: 766678610582175604}
   - {fileID: 7855758593387918211}
   - {fileID: -1314872248042890374}
-  - {fileID: -8354747089981820316}
   - {fileID: -3926906664673480658}
   - {fileID: -1776440421019933078}
   - {fileID: -185474913109636274}
@@ -1450,7 +1437,6 @@ MonoBehaviour:
   m_multiviewRenderRegionsOptimizationMode: 0
   m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 1
-  m_useOpenXRPredictedTime: 0
 --- !u!114 &3279485027523124439
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1811,7 +1797,6 @@ MonoBehaviour:
   m_multiviewRenderRegionsOptimizationMode: 0
   m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 0
-  m_useOpenXRPredictedTime: 0
 --- !u!114 &5715080097940366490
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1903,7 +1888,6 @@ MonoBehaviour:
   m_multiviewRenderRegionsOptimizationMode: 0
   m_hasMigratedMultiviewRenderRegionSetting: 1
   m_foveatedRenderingApi: 0
-  m_useOpenXRPredictedTime: 0
 --- !u!114 &5919399070564312567
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2090,7 +2074,7 @@ MonoBehaviour:
   nameUi: 'Android XR: AR Anchor'
   version: 0.1.0
   featureIdInternal: com.unity.openxr.feature.arfoundation-androidxr-anchor
-  openxrExtensionStrings: XR_ANDROID_trackables
+  openxrExtensionStrings: XR_ANDROID_trackables XR_ANDROID_device_anchor_persistence
   company: Unity Technologies
   priority: 0
   targetOpenXRApiVersion: 
