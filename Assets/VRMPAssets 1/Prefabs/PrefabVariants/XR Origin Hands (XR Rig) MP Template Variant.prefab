@@ -3373,6 +3373,7 @@ MonoBehaviour:
   shrinkSpeed: 0.1
   minScale: 0.1
   destroyWhenMinimum: 0
+  resetPosition: {x: 0, y: 0.15, z: 0}
 --- !u!1001 &962338684212832882
 PrefabInstance:
   m_ObjectHideFlags: 0
