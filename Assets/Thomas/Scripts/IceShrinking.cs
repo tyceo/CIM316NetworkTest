@@ -1,7 +1,6 @@
 using Unity.Netcode;
 using Unity.Services.Multiplayer;
 using UnityEngine;
-using UnityEngine.XR.Interaction.Toolkit.Locomotion.Teleportation;
 using XRMultiplayer;
 
 public class IceShrinking : NetworkBehaviour
@@ -9,7 +8,6 @@ public class IceShrinking : NetworkBehaviour
     [SerializeField] private float shrinkSpeed = 0.5f;
     [SerializeField] private float minScale = 0.1f;
     [SerializeField] private bool destroyWhenMinimum = false;
-    [SerializeField] private Vector3 resetPosition = new Vector3(0, .15f, 0);
     
     private bool isBeingLit = false;
     private Vector3 originalScale;
@@ -45,24 +43,16 @@ public class IceShrinking : NetworkBehaviour
                 
                 if (destroyWhenMinimum)
                 {
-                    // Reset the scale before destroying
-                    transform.localScale = originalScale;
-                    
-                    //Destroy(gameObject);
-                    
-                    // Teleport player to reset position
-                    TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
-                    
-                    if (teleportationProvider != null)
-                    {
-                        TeleportRequest teleportRequest = new TeleportRequest
-                        {
-                            destinationPosition = resetPosition,
-                            destinationRotation = Quaternion.identity
-                        };
-                        
-                        teleportationProvider.QueueTeleportRequest(teleportRequest);
-                    }
+                    Destroy(gameObject);
+                    //NetworkManager.Singleton.Shutdown();
+                    //XRINetworkGameManager.Disconnect();
+                    //XRINetworkGameManager.Instance.Disconnect();
+                    if (!IsOwner) return;
+
+                    //UnityEditor.EditorApplication.isPlaying = false;
+                    Application.Quit();
+
+
                 }
             }
         }
