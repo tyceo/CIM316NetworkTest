@@ -2,17 +2,20 @@ using Unity.Netcode;
 using Unity.Services.Multiplayer;
 using UnityEngine;
 using XRMultiplayer;
+using UnityEngine.XR.Interaction.Toolkit.Locomotion.Teleportation;
 
 public class IceShrinking : NetworkBehaviour
 {
     [SerializeField] private float shrinkSpeed = 0.5f;
-    [SerializeField] private float minScale = 0.1f;
-    [SerializeField] private bool destroyWhenMinimum = false;
+    [SerializeField] private float minScale = 0.11f;
+    [SerializeField] private bool destroyWhenMinimum = true;
     
     private bool isBeingLit = false;
     private Vector3 originalScale;
     private float lastHitTime;
     private float hitTimeout = 0.1f; // Time before considering light is no longer hitting
+    
+    //[SerializeField] private Transform teleportDestination;
 
     void Start()
     {
@@ -29,34 +32,34 @@ public class IceShrinking : NetworkBehaviour
         }
 
         // Shrink if being lit
-        if (isBeingLit && transform.localScale.x > minScale)
+        if (isBeingLit)
         {
             // Shrink the object uniformly
             transform.localScale -= Vector3.one * shrinkSpeed * Time.deltaTime;
             
-            // Ensure we don't go below minimum scale
+            // Check if we've reached minimum scale for destruction
             if (transform.localScale.x <= minScale)
             {
-                transform.localScale = Vector3.one * minScale;
-
-                
-                
                 if (destroyWhenMinimum)
                 {
-                    Destroy(gameObject);
-                    //NetworkManager.Singleton.Shutdown();
-                    //XRINetworkGameManager.Disconnect();
-                    //XRINetworkGameManager.Instance.Disconnect();
+                    Debug.Log("Destroying Ice Shrinking");
                     if (!IsOwner) return;
 
-                    //UnityEditor.EditorApplication.isPlaying = false;
-                    Application.Quit();
-
+                    playersweeperthing playersweeperthing = FindObjectOfType<playersweeperthing>();
+                    playersweeperthing.SendPlayerToStart();
+                    Debug.Log("Sending player to start");
+                    transform.localScale = originalScale;
 
                 }
             }
+            
         }
         
+    }
+
+    public void ResetTheSize()
+    {
+        transform.localScale = originalScale;
     }
 
     // Called by the Flashlight script when raycast hits this object

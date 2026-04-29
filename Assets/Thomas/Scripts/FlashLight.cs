@@ -10,6 +10,7 @@ public class Flashlight : MonoBehaviour
     [SerializeField] private int rayCount = 32; // Number of rays to cast in the cone
     
     private Transform lightTransform;
+    private Vector3[] rayDirections; // Store fixed ray directions
 
     void Start()
     {
@@ -26,6 +27,31 @@ public class Flashlight : MonoBehaviour
         {
             flashlightLight.enabled = true;
         }
+        
+        // Generate fixed ray directions
+        GenerateRayDirections();
+    }
+
+    private void GenerateRayDirections()
+    {
+        rayDirections = new Vector3[rayCount];
+        float halfAngle = coneAngle / 2f;
+        
+        // Create evenly distributed rays in a cone pattern
+        for (int i = 0; i < rayCount; i++)
+        {
+            float ringProgress = (float)i / rayCount;
+            
+            // Use spiral/fibonacci pattern for even distribution
+            float angle = i * 137.5f; // Golden angle in degrees
+            float radius = Mathf.Sqrt(ringProgress) * halfAngle;
+            
+            // Create a direction within the cone (relative to forward)
+            Vector3 direction = Quaternion.AngleAxis(radius, Vector3.right) * Vector3.forward;
+            direction = Quaternion.AngleAxis(angle, Vector3.forward) * direction;
+            
+            rayDirections[i] = direction;
+        }
     }
 
     void Update()
@@ -36,22 +62,12 @@ public class Flashlight : MonoBehaviour
     private void CastFlashlightRay()
     {
         Vector3 rayOrigin = lightTransform.position;
-        Vector3 forward = lightTransform.forward;
         
-        float halfAngle = coneAngle / 2f;
-        
-        // Cast rays distributed throughout the cone
+        // Cast rays using the fixed directions, rotated by the light's current orientation
         for (int i = 0; i < rayCount; i++)
         {
-            // Random distribution within the cone for better coverage
-            float randomAngle = Random.Range(0f, 360f);
-            float randomRadius = Mathf.Sqrt(Random.Range(0f, 1f)) * halfAngle; // sqrt for uniform distribution
-            
-            // Create a direction within the cone
-            Vector3 rayDirection = Quaternion.AngleAxis(randomRadius, lightTransform.right) * forward;
-            rayDirection = Quaternion.AngleAxis(randomAngle, forward) * rayDirection;
-            
-            CastRay(rayOrigin, rayDirection);
+            Vector3 worldDirection = lightTransform.rotation * rayDirections[i];
+            CastRay(rayOrigin, worldDirection);
         }
     }
     
@@ -65,7 +81,7 @@ public class Flashlight : MonoBehaviour
         if (Physics.Raycast(origin, direction, out hit, range, targetLayers))
         {
             // Check if the hit object has IceShrinking component
-            IceShrinking iceShrinking = hit.collider.GetComponent<IceShrinking>();
+            IceShrinking iceShrinking = hit.collider.GetComponentInChildren<IceShrinking>();
             if (iceShrinking != null)
             {
                 iceShrinking.OnFlashlightHit();

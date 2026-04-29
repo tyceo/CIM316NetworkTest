@@ -9,6 +9,9 @@ TagManager:
   - Anchor
   - PlayerHand
   - Destroyer
+  - icecube
+  - flashlight
+  - Sword
   layers:
   - Default
   - TransparentFX
@@ -19,7 +22,7 @@ TagManager:
   - Player
   - Mirror
   - Sweeper
-  - 
+  - Sword
   - 
   - 
   - 

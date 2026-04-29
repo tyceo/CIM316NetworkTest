@@ -1,5 +1,7 @@
 using UnityEngine;
 using System;
+using Unity.Netcode;
+using XRMultiplayer;
 #if UNITY_EDITOR
 using UnityEditor;
 #endif
@@ -77,6 +79,62 @@ namespace GogoGaga.OptimizedRopesAndCables
         
         private void Start()
         {
+            // Auto-assign endPoint if this object is called "RopeLeft" and it's the local client
+            if (gameObject.name == "RopeLeft")
+            {
+                // Check if this is the local player's rope
+                Transform parentTransform = transform.parent;
+                while (parentTransform != null)
+                {
+                    XRINetworkPlayer networkPlayer = parentTransform.GetComponent<XRINetworkPlayer>();
+                    if (networkPlayer != null)
+                    {
+                        // Only assign if this is the local player
+                        if (networkPlayer == XRINetworkPlayer.LocalPlayer || (networkPlayer.TryGetComponent<NetworkBehaviour>(out var netBehaviour) && netBehaviour.IsOwner))
+                        {
+                            GameObject leftController = GameObject.Find("Left Controller Stabilized Attach");
+                            if (leftController != null)
+                            {
+                                endPoint = leftController.transform;
+                            }
+                            else
+                            {
+                                Debug.LogWarning("RopeLeft: Could not find 'Left Controller' object to assign as endPoint.", gameObject);
+                            }
+                        }
+                        break;
+                    }
+                    parentTransform = parentTransform.parent;
+                }
+            }
+            if (gameObject.name == "RopeRight")
+            {
+                // Check if this is the local player's rope
+                Transform parentTransform = transform.parent;
+                while (parentTransform != null)
+                {
+                    XRINetworkPlayer networkPlayer = parentTransform.GetComponent<XRINetworkPlayer>();
+                    if (networkPlayer != null)
+                    {
+                        // Only assign if this is the local player
+                        if (networkPlayer == XRINetworkPlayer.LocalPlayer || (networkPlayer.TryGetComponent<NetworkBehaviour>(out var netBehaviour) && netBehaviour.IsOwner))
+                        {
+                            GameObject rightController = GameObject.Find("Right Controller Stabilized Attach");
+                            if (rightController != null)
+                            {
+                                endPoint = rightController.transform;
+                            }
+                            else
+                            {
+                                Debug.LogWarning("RopeRight: Could not find 'Right Controller' object to assign as endPoint.", gameObject);
+                            }
+                        }
+                        break;
+                    }
+                    parentTransform = parentTransform.parent;
+                }
+            }
+
             InitializeLineRenderer();
             if (AreEndPointsValid())
             {

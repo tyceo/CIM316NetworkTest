@@ -24,4 +24,19 @@ public class playersweeperthing : MonoBehaviour
             teleportationProvider.QueueTeleportRequest(teleportRequest);
         }
     }
+    public void SendPlayerToStart()
+    {
+        TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
+        
+        if (teleportationProvider != null && teleportDestination != null)
+        {
+            TeleportRequest teleportRequest = new TeleportRequest
+            {
+                destinationPosition = new Vector3(259.988007f,157.294006f,-123.014999f),
+                destinationRotation = teleportDestination.rotation
+            };
+            Debug.Log("Sending player to start done");
+            teleportationProvider.QueueTeleportRequest(teleportRequest);
+        }
+    }
 }
