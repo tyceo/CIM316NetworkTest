@@ -11,7 +11,6 @@ using TMPro;
 
 public class MinigameManager : NetworkBehaviour
 {
-    
     [SerializeField] private GameObject objectToHide;
     [SerializeField] private Transform[] spawnLocations = new Transform[8];
     [SerializeField] private float heightThreshold = 100f;
@@ -20,12 +19,15 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private float winnerDisplayDelay = 10f;
     [SerializeField] private TextMeshProUGUI currentMinigameText;
     [SerializeField] private TextMeshProUGUI playersEliminatedText;
+
+    [Header("Floating Player UI")]
+    [SerializeField] private GameObject floatingTextObject;
+    [SerializeField] private TextMeshPro floatingText;
     
     private NetworkVariable<bool> shouldHideObject = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> minigameRunning = new NetworkVariable<bool>(false);
 
     public NetworkVariable<int> currentMinigame = new NetworkVariable<int>(4);
-    //Minigame names: none=0 , flashlight=1, oneSword=2,
     
     private bool isProcessingWin = false;
     
@@ -36,6 +38,7 @@ public class MinigameManager : NetworkBehaviour
     private Vector3 swordOriginalPosition;
     private GameObject swordObject;
     private Coroutine moveSwordCoroutine = null;
+
     private Vector3[] swordSpawnPositions = new Vector3[]
     {
         new Vector3(291.220001f, 133.660004f, -64.75f),
@@ -43,7 +46,6 @@ public class MinigameManager : NetworkBehaviour
         new Vector3(290.089996f, 133.720001f, -89.4199982f)
     };
     
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
         currentMinigame.OnValueChanged += OnMinigameChanged;
@@ -54,9 +56,10 @@ public class MinigameManager : NetworkBehaviour
         UpdateSword();
         UpdateMinigameText();
         currentMinigame.Value = 4;
+
+        HideFloatingText();
     }
 
-    // Update is called once per frame
     void Update()
     {
         objectToHide.SetActive(shouldHideObject.Value);
@@ -88,6 +91,7 @@ public class MinigameManager : NetworkBehaviour
         if (currentMinigameText == null) return;
         
         string minigameName = "";
+
         switch (currentMinigame.Value)
         {
             case 0:
@@ -113,7 +117,6 @@ public class MinigameManager : NetworkBehaviour
         
         if (iceCubes.Length == 0)
         {
-            // Fallback: search by name if no objects with tag found
             iceCubes = FindObjectsByType<GameObject>(FindObjectsSortMode.None);
             iceCubes = System.Array.FindAll(iceCubes, obj => obj.name.ToLower().Contains("icecube"));
         }
@@ -121,6 +124,7 @@ public class MinigameManager : NetworkBehaviour
         foreach (GameObject iceCube in iceCubes)
         {
             IceShrinking iceShrinking = iceCube.GetComponent<IceShrinking>();
+
             if (iceShrinking != null)
             {
                 iceShrinking.ResetTheSize();
@@ -152,10 +156,8 @@ public class MinigameManager : NetworkBehaviour
         
         int playersRemaining = allPlayers.Length - playersAboveThreshold;
         
-        // Check if we should switch minigame (when half the players are eliminated)
         if (allPlayers.Length == 4 && playersRemaining == 2)
         {
-            // Switch between minigame 1 and 2
             if (currentMinigame.Value == 1)
             {
                 currentMinigame.Value = 2;
@@ -194,7 +196,6 @@ public class MinigameManager : NetworkBehaviour
             swordOriginalPosition = swordObject.transform.position;
         }
     }
-    
 
     void UpdateIceCubes()
     {
@@ -202,7 +203,6 @@ public class MinigameManager : NetworkBehaviour
         
         if (iceCubes.Length == 0)
         {
-            // Fallback: search by name if no objects with tag found
             iceCubes = FindObjectsByType<GameObject>(FindObjectsSortMode.None);
             iceCubes = System.Array.FindAll(iceCubes, obj => obj.name.ToLower().Contains("icecube"));
         }
@@ -212,6 +212,7 @@ public class MinigameManager : NetworkBehaviour
         foreach (GameObject iceCube in iceCubes)
         {
             MeshRenderer meshRenderer = iceCube.GetComponent<MeshRenderer>();
+
             if (meshRenderer != null)
             {
                 meshRenderer.enabled = shouldShow;
@@ -221,25 +222,21 @@ public class MinigameManager : NetworkBehaviour
 
     void UpdateFlashlights()
     {
-        // Stop any existing coroutine
         if (moveFlashlightsCoroutine != null)
         {
             StopCoroutine(moveFlashlightsCoroutine);
         }
         
-        // Start new coroutine to move flashlights
         moveFlashlightsCoroutine = StartCoroutine(MoveFlashlightsCoroutine());
     }
 
     void UpdateSword()
     {
-        // Stop any existing coroutine
         if (moveSwordCoroutine != null)
         {
             StopCoroutine(moveSwordCoroutine);
         }
         
-        // Start new coroutine to move sword
         moveSwordCoroutine = StartCoroutine(MoveSwordCoroutine());
     }
 
@@ -250,11 +247,11 @@ public class MinigameManager : NetworkBehaviour
             if (flashlight == null) continue;
             
             XRGrabInteractable grabInteractable = flashlight.GetComponent<XRGrabInteractable>();
+
             if (grabInteractable != null && grabInteractable.isSelected)
             {
-                // Force drop the flashlight
-                // Create a copy of the list to avoid modification during iteration
                 var interactors = new List<UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor>(grabInteractable.interactorsSelecting);
+
                 foreach (var interactor in interactors)
                 {
                     grabInteractable.interactionManager.SelectExit(interactor, grabInteractable);
@@ -269,8 +266,8 @@ public class MinigameManager : NetworkBehaviour
         {
             if (flashlight == null) continue;
             
-            // Disable rigidbody physics temporarily to prevent interference
             Rigidbody rb = flashlight.GetComponent<Rigidbody>();
+
             if (rb != null)
             {
                 rb.linearVelocity = Vector3.zero;
@@ -279,7 +276,6 @@ public class MinigameManager : NetworkBehaviour
             
             if (shouldShow)
             {
-                // Move back to original position
                 if (flashlightOriginalPositions.ContainsKey(flashlight))
                 {
                     flashlight.transform.position = flashlightOriginalPositions[flashlight];
@@ -287,7 +283,6 @@ public class MinigameManager : NetworkBehaviour
             }
             else
             {
-                // Move to hide position
                 flashlight.transform.position = flashlightHidePosition;
             }
         }
@@ -298,10 +293,8 @@ public class MinigameManager : NetworkBehaviour
         GameObject[] flashlights = GameObject.FindGameObjectsWithTag("flashlight");
         bool shouldShow = currentMinigame.Value == 1;
         
-        // Small delay before starting
         yield return new WaitForSeconds(1f);
         
-        // First, force drop all flashlights
         DropAllFlashlights(flashlights);
         
         float duration = 1f;
@@ -314,7 +307,6 @@ public class MinigameManager : NetworkBehaviour
             yield return null;
         }
         
-        // One final move to ensure position is set
         MoveFlashlightsToPosition(flashlights, shouldShow);
     }
 
@@ -323,10 +315,11 @@ public class MinigameManager : NetworkBehaviour
         if (swordObject == null) return;
         
         XRGrabInteractable grabInteractable = swordObject.GetComponent<XRGrabInteractable>();
+
         if (grabInteractable != null && grabInteractable.isSelected)
         {
-            // Force drop the sword
             var interactors = new List<UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor>(grabInteractable.interactorsSelecting);
+
             foreach (var interactor in interactors)
             {
                 grabInteractable.interactionManager.SelectExit(interactor, grabInteractable);
@@ -338,8 +331,8 @@ public class MinigameManager : NetworkBehaviour
     {
         if (swordObject == null) return;
         
-        // Disable rigidbody physics temporarily to prevent interference
         Rigidbody rb = swordObject.GetComponent<Rigidbody>();
+
         if (rb != null)
         {
             rb.linearVelocity = Vector3.zero;
@@ -348,13 +341,11 @@ public class MinigameManager : NetworkBehaviour
         
         if (shouldShow)
         {
-            // Move to a random spawn position
             int randomIndex = Random.Range(0, swordSpawnPositions.Length);
             swordObject.transform.position = swordSpawnPositions[randomIndex];
         }
         else
         {
-            // Move to hide position
             swordObject.transform.position = flashlightHidePosition;
         }
     }
@@ -365,10 +356,8 @@ public class MinigameManager : NetworkBehaviour
         
         bool shouldShow = currentMinigame.Value == 2;
         
-        // Small delay before starting
         yield return new WaitForSeconds(1f);
         
-        // First, force drop the sword
         DropSword();
         
         float duration = 1f;
@@ -381,7 +370,6 @@ public class MinigameManager : NetworkBehaviour
             yield return null;
         }
         
-        // One final move to ensure position is set
         MoveSwordToPosition(shouldShow);
     }
 
@@ -403,15 +391,12 @@ public class MinigameManager : NetworkBehaviour
         
         int playersRemaining = allPlayers.Length - playersAboveThreshold;
         
-        // If minigame is 2 (SWORD) and anyone is eliminated, switch to minigame 1 (MELT)
         if (currentMinigame.Value == 2 && playersAboveThreshold > 0)
         {
             currentMinigame.Value = 1;
         }
-        // Check if we should switch minigame (when half the players are eliminated)
         else if (allPlayers.Length == 4 && playersRemaining == 2)
         {
-            // Switch between minigame 1 and 2
             if (currentMinigame.Value == 1)
             {
                 currentMinigame.Value = 2;
@@ -423,7 +408,6 @@ public class MinigameManager : NetworkBehaviour
         }
         else if (allPlayers.Length == 5 && playersRemaining == 3)
         {
-            // Switch between minigame 1 and 2
             if (currentMinigame.Value == 1)
             {
                 currentMinigame.Value = 2;
@@ -434,7 +418,6 @@ public class MinigameManager : NetworkBehaviour
             }
         }
         
-        // Check if all or all but one players are above the threshold
         if (playersAboveThreshold >= allPlayers.Length - 1 && playersAboveThreshold > 0)
         {
             StartCoroutine(HandleMinigameEnd());
@@ -445,18 +428,56 @@ public class MinigameManager : NetworkBehaviour
     {
         isProcessingWin = true;
         
-        // Hide the object to reveal winner/results
         shouldHideObject.Value = true;
+
+        ShowFloatingText("1 PLAYER REMAINING");
+        yield return new WaitForSeconds(2f);
+
+        ShowFloatingText("NEXT ROUND");
+        yield return new WaitForSeconds(2f);
+
+        ShowFloatingText("3");
+        yield return new WaitForSeconds(1f);
+
+        ShowFloatingText("2");
+        yield return new WaitForSeconds(1f);
+
+        ShowFloatingText("1");
+        yield return new WaitForSeconds(1f);
+
+        ShowFloatingText("GO!");
+        yield return new WaitForSeconds(1f);
+
+        HideFloatingText();
         
-        // Wait for 5 seconds to display winner
         yield return new WaitForSeconds(winnerDisplayDelay);
         
-        // End the minigame and reset players
         minigameRunning.Value = false;
         ResetAllPlayersRpc();
         
         isProcessingWin = false;
         shouldHideObject.Value = false;
+    }
+
+    private void ShowFloatingText(string message)
+    {
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(true);
+        }
+
+        if (floatingText != null)
+        {
+            floatingText.text = message;
+        }
+    }
+
+    private void HideFloatingText()
+    {
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(false);
+        }
     }
 
     public void StartMinigame()
@@ -465,7 +486,7 @@ public class MinigameManager : NetworkBehaviour
         
         StartCoroutine(StartMinigameDelayed());
     }
-    //button
+
     IEnumerator StartMinigameDelayed()
     {
         currentMinigame.Value = Random.Range(1, 3);
@@ -498,6 +519,7 @@ public class MinigameManager : NetworkBehaviour
         if (XRINetworkPlayer.LocalPlayer != null && XRINetworkPlayer.LocalPlayer.OwnerClientId == playerClientId)
         {
             TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
+
             if (teleportationProvider == null)
             {
                 Debug.LogError("Local player does not have a teleportation provider!");
