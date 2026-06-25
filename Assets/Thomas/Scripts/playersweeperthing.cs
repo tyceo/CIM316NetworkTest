@@ -8,7 +8,8 @@ public class playersweeperthing : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         // Check if the collided object is called "Pole"
-        if (other.gameObject.name != "Pole") return;
+        //if (other.gameObject.name != "Pole") return;
+        if (!other.gameObject.name.Contains("Pole")) return;
         
         // Find the teleportation provider
         TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
