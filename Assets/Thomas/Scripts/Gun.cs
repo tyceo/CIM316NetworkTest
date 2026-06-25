@@ -9,7 +9,7 @@ public class Gun : MonoBehaviour
     [SerializeField] private GameObject bulletPrefab;
     [SerializeField] private Transform firePoint;
     [SerializeField] private float bulletSpeed = 20f;
-    [SerializeField] private float fireRate = 0.5f;
+    [SerializeField] private float fireRate = 50f;
     
     private float nextFireTime = 0f;
 
@@ -70,7 +70,7 @@ public class Gun : MonoBehaviour
         nextFireTime = Time.time + fireRate;
         
         // Start coroutine to destroy this gameobject after 0.5 seconds
-        StartCoroutine(DestroyAfterDelay(0.5f));
+        StartCoroutine(DestroyAfterDelay(6f));
     }
     
     private IEnumerator DestroyAfterDelay(float delay)

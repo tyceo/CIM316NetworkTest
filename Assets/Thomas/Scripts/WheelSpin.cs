@@ -10,6 +10,8 @@ public class WheelSpin : MonoBehaviour
     [SerializeField] private AnimationCurve spinCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
     [SerializeField] private MinigameManager minigameManager;
     [SerializeField] private float autoSpinInterval = 30f;
+    [SerializeField] private AudioSource audioSource;
+    [SerializeField] private AudioClip spinSound;
 
     private bool isSpinning = false;
     private float currentSpinTime = 0f;
@@ -64,6 +66,9 @@ public class WheelSpin : MonoBehaviour
 
         currentSpinDuration = Random.Range(minSpinDuration, maxSpinDuration);
         currentSpinSpeed = Random.Range(minSpinSpeed, maxSpinSpeed);
+
+        if (audioSource != null && spinSound != null)
+            audioSource.PlayOneShot(spinSound);
     }
 
     private void CheckHighestSphere()
