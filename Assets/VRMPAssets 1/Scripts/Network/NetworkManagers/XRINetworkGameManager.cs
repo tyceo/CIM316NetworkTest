@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Unity.Netcode;
@@ -9,6 +10,7 @@ using Unity.Services.Multiplayer;
 using Unity.Netcode.Transports.UTP;
 using System.Net.Sockets;
 using System.Net;
+
 
 #if UNITY_EDITOR && HAS_MPPM
 
@@ -261,6 +263,13 @@ namespace XRMultiplayer
             }
 
             m_ConnectionState.Value = ConnectionState.Authenticated;
+            
+            StartCoroutine(AutoQuickJoinAfterDelay(10f));
+        }
+        IEnumerator AutoQuickJoinAfterDelay(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            QuickJoinLobby();
         }
 
         /// <summary>

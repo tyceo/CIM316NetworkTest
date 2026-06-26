@@ -82,6 +82,7 @@ public class MinigameManager : NetworkBehaviour
 
     void Start()
     {
+        
         currentMinigame.OnValueChanged += OnMinigameChanged;
         isLoadingMinigame.OnValueChanged += (prev, next) => UpdateMinigameText();
         StoreFlashlightPositions();
