@@ -18,6 +18,12 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private float winnerDisplayDelay = 10f;
     [SerializeField] private TextMeshProUGUI currentMinigameText;
     [SerializeField] private TextMeshProUGUI playersEliminatedText;
+
+    [Header("Floating Player UI")]
+    [SerializeField] private GameObject floatingTextObject;
+    [SerializeField] private TextMeshPro floatingText;
+
+    [Header("Extra Minigame Objects")]
     [SerializeField] private GameObject gunPrefab;
     [SerializeField] private GameObject liftObject;
     [SerializeField] private float liftDuration = 3f;
@@ -86,6 +92,7 @@ public class MinigameManager : NetworkBehaviour
         UpdateGuns();
         UpdateMinigameText();
         currentMinigame.Value = 4;
+        HideFloatingText();
     }
 
     void Update()
@@ -511,6 +518,26 @@ public class MinigameManager : NetworkBehaviour
 
         shouldHideObject.Value = true;
 
+        ShowFloatingTextRpc("1 PLAYER REMAINING");
+        yield return new WaitForSeconds(2f);
+
+        ShowFloatingTextRpc("NEXT ROUND");
+        yield return new WaitForSeconds(2f);
+
+        ShowFloatingTextRpc("3");
+        yield return new WaitForSeconds(1f);
+
+        ShowFloatingTextRpc("2");
+        yield return new WaitForSeconds(1f);
+
+        ShowFloatingTextRpc("1");
+        yield return new WaitForSeconds(1f);
+
+        ShowFloatingTextRpc("GO!");
+        yield return new WaitForSeconds(1f);
+
+        HideFloatingTextRpc();
+
         yield return new WaitForSeconds(winnerDisplayDelay);
 
         CleanupGuns();
@@ -520,6 +547,34 @@ public class MinigameManager : NetworkBehaviour
 
         isProcessingWin = false;
         shouldHideObject.Value = false;
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ShowFloatingTextRpc(string message)
+    {
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(true);
+        }
+
+        if (floatingText != null)
+        {
+            floatingText.text = message;
+        }
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void HideFloatingTextRpc()
+    {
+        HideFloatingText();
+    }
+
+    private void HideFloatingText()
+    {
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(false);
+        }
     }
 
     public void StartMinigame()
@@ -611,12 +666,14 @@ public class MinigameManager : NetworkBehaviour
             shouldHideObject.Value = false;
         }
     }
-    
+
     public void TriggerLift()
     {
+        if (!IsOwner) return;
+
         if (liftObject == null)
         {
-            Debug.LogWarning("Lift object not assigned!");
+            Debug.LogWarning("Lift object is not assigned!");
             return;
         }
 
@@ -625,57 +682,53 @@ public class MinigameManager : NetworkBehaviour
             StopCoroutine(liftCoroutine);
         }
 
-        liftCoroutine = StartCoroutine(LiftCoroutine());
+        ShowFloatingTextRpc("LIFT ROUND");
+        liftCoroutine = StartCoroutine(LiftRoutine());
     }
 
-    IEnumerator LiftCoroutine()
+    IEnumerator LiftRoutine()
     {
-        Vector3 startPos = new Vector3(liftObject.transform.position.x, liftYStart, liftObject.transform.position.z);
-        Vector3 endPos = new Vector3(liftObject.transform.position.x, liftYEnd, liftObject.transform.position.z);
+        Vector3 startPosition = liftObject.transform.position;
+        startPosition.y = liftYStart;
 
-        // Snap to start position
-        liftObject.transform.position = startPos;
+        Vector3 endPosition = liftObject.transform.position;
+        endPosition.y = liftYEnd;
 
-        // Move from A to B over liftDuration seconds
-        float elapsed = 0f;
-        while (elapsed < liftDuration)
+        float timer = 0f;
+
+        while (timer < liftDuration)
         {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / liftDuration);
-            liftObject.transform.position = Vector3.Lerp(startPos, endPos, t);
+            float progress = timer / liftDuration;
+            liftObject.transform.position = Vector3.Lerp(startPosition, endPosition, progress);
+            timer += Time.deltaTime;
             yield return null;
         }
 
-        liftObject.transform.position = endPos;
-
-        // Stay at B for liftStayDuration seconds
+        liftObject.transform.position = endPosition;
         yield return new WaitForSeconds(liftStayDuration);
 
-        // Instantly return to A
-        liftObject.transform.position = startPos;
+        timer = 0f;
 
-        liftCoroutine = null;
+        while (timer < liftDuration)
+        {
+            float progress = timer / liftDuration;
+            liftObject.transform.position = Vector3.Lerp(endPosition, startPosition, progress);
+            timer += Time.deltaTime;
+            yield return null;
+        }
+
+        liftObject.transform.position = startPosition;
+        HideFloatingTextRpc();
     }
-    
+
     public void SpawnSingleGun()
     {
         if (!IsOwner) return;
 
-        if (gunPrefab == null)
-        {
-            Debug.LogWarning("Gun prefab is not assigned!");
-            return;
-        }
+        ShowFloatingTextRpc("ONESHOT ROUND");
 
-        List<Vector3> positions = new List<Vector3>(flashlightOriginalPositions.Values);
-
-        if (positions.Count == 0)
-        {
-            Debug.LogWarning("No torch spawn positions found!");
-            return;
-        }
-
-        Vector3 spawnPosition = positions[Random.Range(0, positions.Count)];
-        SpawnGunServerRpc(spawnPosition, gunPrefab.transform.rotation);
+        // This uses the newer gun system already in this script.
+        // Setting currentMinigame to 3 calls UpdateGuns(), which spawns guns using gunPrefab.
+        currentMinigame.Value = 3;
     }
 }
