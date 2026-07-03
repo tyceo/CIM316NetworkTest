@@ -15,14 +15,21 @@ public class UIManager : MonoBehaviour
     [SerializeField] private TextMeshPro playersEliminatedStatusText;
 
     [Header("Timing")]
-    [SerializeField] private float defaultMessageDuration = 2f;
+    [SerializeField] private float defaultMessageDuration = 20f;
+    [SerializeField] private float statusDuration = 5f;
 
     private Coroutine currentMessageRoutine;
+    private Coroutine minigameStatusRoutine;
+    private Coroutine playersStatusRoutine;
+
+    private string lastMinigameStatus = "";
+    private string lastPlayersStatus = "";
 
     private void Awake()
     {
         Instance = this;
         HideFloatingText();
+        ClearStatusUI();
     }
 
     public void ShowMessage(string message)
@@ -47,6 +54,7 @@ public class UIManager : MonoBehaviour
         yield return new WaitForSeconds(duration);
 
         HideFloatingText();
+        currentMessageRoutine = null;
     }
 
     public void ShowMessageNoTimer(string message)
@@ -54,6 +62,7 @@ public class UIManager : MonoBehaviour
         if (currentMessageRoutine != null)
         {
             StopCoroutine(currentMessageRoutine);
+            currentMessageRoutine = null;
         }
 
         if (floatingTextObject != null)
@@ -77,22 +86,92 @@ public class UIManager : MonoBehaviour
 
     public void SetMinigameStatus(string message)
     {
+        if (message == lastMinigameStatus)
+        {
+            return;
+        }
+
+        lastMinigameStatus = message;
+
+        if (minigameStatusRoutine != null)
+        {
+            StopCoroutine(minigameStatusRoutine);
+        }
+
+        minigameStatusRoutine = StartCoroutine(MinigameStatusRoutine(message));
+    }
+
+    private IEnumerator MinigameStatusRoutine(string message)
+    {
         if (minigameStatusText != null)
         {
             minigameStatusText.text = message;
         }
+
+        yield return new WaitForSeconds(statusDuration);
+
+        if (minigameStatusText != null)
+        {
+            minigameStatusText.text = "";
+        }
+
+        minigameStatusRoutine = null;
     }
 
     public void SetPlayersEliminatedStatus(string message)
+    {
+        if (message == lastPlayersStatus)
+        {
+            return;
+        }
+
+        lastPlayersStatus = message;
+
+        if (playersStatusRoutine != null)
+        {
+            StopCoroutine(playersStatusRoutine);
+        }
+
+        playersStatusRoutine = StartCoroutine(PlayersStatusRoutine(message));
+    }
+
+    private IEnumerator PlayersStatusRoutine(string message)
     {
         if (playersEliminatedStatusText != null)
         {
             playersEliminatedStatusText.text = message;
         }
+
+        yield return new WaitForSeconds(statusDuration);
+
+        if (playersEliminatedStatusText != null)
+        {
+            playersEliminatedStatusText.text = "";
+        }
+
+        playersStatusRoutine = null;
+    }
+
+    public void ShowStatus(string minigameMessage, string playersMessage)
+    {
+        SetMinigameStatus(minigameMessage);
+        SetPlayersEliminatedStatus(playersMessage);
     }
 
     public void ClearStatusUI()
     {
+        if (minigameStatusRoutine != null)
+        {
+            StopCoroutine(minigameStatusRoutine);
+            minigameStatusRoutine = null;
+        }
+
+        if (playersStatusRoutine != null)
+        {
+            StopCoroutine(playersStatusRoutine);
+            playersStatusRoutine = null;
+        }
+
         if (minigameStatusText != null)
         {
             minigameStatusText.text = "";
@@ -102,6 +181,9 @@ public class UIManager : MonoBehaviour
         {
             playersEliminatedStatusText.text = "";
         }
+
+        lastMinigameStatus = "";
+        lastPlayersStatus = "";
     }
 
     public void CountdownThenGo()
@@ -129,5 +211,6 @@ public class UIManager : MonoBehaviour
         yield return new WaitForSeconds(1f);
 
         HideFloatingText();
+        currentMessageRoutine = null;
     }
 }
