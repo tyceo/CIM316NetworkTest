@@ -59,8 +59,10 @@ public class MinigameManager : NetworkBehaviour
     {
         List<int> options = new List<int> { 1, 2, 3 };
         options.Remove(lastMinigame);
+
         int chosen = options[Random.Range(0, options.Count)];
         lastMinigame = chosen;
+
         return chosen;
     }
 
@@ -94,7 +96,10 @@ public class MinigameManager : NetworkBehaviour
 
     void Update()
     {
-        objectToHide.SetActive(shouldHideObject.Value);
+        if (objectToHide != null)
+        {
+            objectToHide.SetActive(shouldHideObject.Value);
+        }
 
         if (IsOwner && minigameRunning.Value && !isProcessingWin && !isLoadingMinigame.Value)
         {
@@ -121,11 +126,22 @@ public class MinigameManager : NetworkBehaviour
 
     void UpdateMinigameText()
     {
-        if (currentMinigameText == null) return;
+        string message;
 
         if (isLoadingMinigame.Value)
         {
-            currentMinigameText.text = "Current Minigame: Currently loading";
+            message = "Current Minigame: Currently loading";
+
+            if (currentMinigameText != null)
+            {
+                currentMinigameText.text = message;
+            }
+
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.SetMinigameStatus(message);
+            }
+
             return;
         }
 
@@ -150,38 +166,37 @@ public class MinigameManager : NetworkBehaviour
                 break;
         }
 
-        currentMinigameText.text = "Current Minigame: " + minigameName;
-    }
+        message = "Current Minigame: " + minigameName;
 
-    void ResetIceCubeSizes()
-    {
-        GameObject[] iceCubes = GameObject.FindGameObjectsWithTag("icecube");
-
-        if (iceCubes.Length == 0)
+        if (currentMinigameText != null)
         {
-            iceCubes = FindObjectsByType<GameObject>(FindObjectsSortMode.None);
-            iceCubes = System.Array.FindAll(iceCubes, obj => obj.name.ToLower().Contains("icecube"));
+            currentMinigameText.text = message;
         }
 
-        foreach (GameObject iceCube in iceCubes)
+        if (UIManager.Instance != null)
         {
-            IceShrinking iceShrinking = iceCube.GetComponent<IceShrinking>();
-            if (iceShrinking != null)
-            {
-                iceShrinking.ResetTheSize();
-            }
+            UIManager.Instance.SetMinigameStatus(message);
         }
     }
 
     void UpdatePlayersEliminatedText()
     {
-        if (playersEliminatedText == null) return;
-
         XRINetworkPlayer[] allPlayers = FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
 
         if (allPlayers.Length == 0)
         {
-            playersEliminatedText.text = "Players eliminated: 0/0";
+            string emptyMessage = "Players eliminated: 0/0";
+
+            if (playersEliminatedText != null)
+            {
+                playersEliminatedText.text = emptyMessage;
+            }
+
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.SetPlayersEliminatedStatus(emptyMessage);
+            }
+
             return;
         }
 
@@ -198,7 +213,38 @@ public class MinigameManager : NetworkBehaviour
         int totalPlayers = allPlayers.Length;
         int eliminatedPlayers = playersAboveThreshold;
 
-        playersEliminatedText.text = "Players eliminated: " + eliminatedPlayers + "/" + totalPlayers;
+        string message = "Players eliminated: " + eliminatedPlayers + "/" + totalPlayers;
+
+        if (playersEliminatedText != null)
+        {
+            playersEliminatedText.text = message;
+        }
+
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.SetPlayersEliminatedStatus(message);
+        }
+    }
+
+    void ResetIceCubeSizes()
+    {
+        GameObject[] iceCubes = GameObject.FindGameObjectsWithTag("icecube");
+
+        if (iceCubes.Length == 0)
+        {
+            iceCubes = FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+            iceCubes = System.Array.FindAll(iceCubes, obj => obj.name.ToLower().Contains("icecube"));
+        }
+
+        foreach (GameObject iceCube in iceCubes)
+        {
+            IceShrinking iceShrinking = iceCube.GetComponent<IceShrinking>();
+
+            if (iceShrinking != null)
+            {
+                iceShrinking.ResetTheSize();
+            }
+        }
     }
 
     void StoreFlashlightPositions()
@@ -239,6 +285,7 @@ public class MinigameManager : NetworkBehaviour
         foreach (GameObject iceCube in iceCubes)
         {
             MeshRenderer meshRenderer = iceCube.GetComponent<MeshRenderer>();
+
             if (meshRenderer != null)
             {
                 meshRenderer.enabled = shouldShow;
@@ -331,6 +378,7 @@ public class MinigameManager : NetworkBehaviour
             if (gun != null)
             {
                 NetworkObject networkObject = gun.GetComponent<NetworkObject>();
+
                 if (networkObject != null && networkObject.IsSpawned)
                 {
                     networkObject.Despawn();
@@ -350,6 +398,7 @@ public class MinigameManager : NetworkBehaviour
             if (flashlight == null) continue;
 
             XRGrabInteractable grabInteractable = flashlight.GetComponent<XRGrabInteractable>();
+
             if (grabInteractable != null && grabInteractable.isSelected)
             {
                 var interactors = new List<UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor>(grabInteractable.interactorsSelecting);
@@ -369,6 +418,7 @@ public class MinigameManager : NetworkBehaviour
             if (flashlight == null) continue;
 
             Rigidbody rb = flashlight.GetComponent<Rigidbody>();
+
             if (rb != null)
             {
                 rb.linearVelocity = Vector3.zero;
@@ -416,6 +466,7 @@ public class MinigameManager : NetworkBehaviour
         if (swordObject == null) return;
 
         XRGrabInteractable grabInteractable = swordObject.GetComponent<XRGrabInteractable>();
+
         if (grabInteractable != null && grabInteractable.isSelected)
         {
             var interactors = new List<UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor>(grabInteractable.interactorsSelecting);
@@ -432,6 +483,7 @@ public class MinigameManager : NetworkBehaviour
         if (swordObject == null) return;
 
         Rigidbody rb = swordObject.GetComponent<Rigidbody>();
+
         if (rb != null)
         {
             rb.linearVelocity = Vector3.zero;
@@ -652,7 +704,7 @@ public class MinigameManager : NetworkBehaviour
             case 1:
                 return "USE THE FLASHLIGHT TO SHRINK THE OPPONENTS!";
             case 2:
-                return "AVOID THE SWORD. SURVIVE THE ROUND!";
+                return "FIRST ONE TO GET THE SWORD CAN ELIMINATE THE OPPONENTS. SURVIVE THE ROUND!";
             case 3:
                 return "GRAB THE GUN. ONE SHOT ONLY!";
             default:

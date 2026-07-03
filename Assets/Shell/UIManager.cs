@@ -6,9 +6,13 @@ public class UIManager : MonoBehaviour
 {
     public static UIManager Instance;
 
-    [Header("Floating VR Text")]
+    [Header("Big Floating Instruction")]
     [SerializeField] private GameObject floatingTextObject;
     [SerializeField] private TextMeshPro floatingText;
+
+    [Header("Floating Status UI")]
+    [SerializeField] private TextMeshPro minigameStatusText;
+    [SerializeField] private TextMeshPro playersEliminatedStatusText;
 
     [Header("Timing")]
     [SerializeField] private float defaultMessageDuration = 2f;
@@ -38,15 +42,7 @@ public class UIManager : MonoBehaviour
 
     private IEnumerator ShowMessageRoutine(string message, float duration)
     {
-        if (floatingTextObject != null)
-        {
-            floatingTextObject.SetActive(true);
-        }
-
-        if (floatingText != null)
-        {
-            floatingText.text = message;
-        }
+        ShowMessageNoTimer(message);
 
         yield return new WaitForSeconds(duration);
 
@@ -76,6 +72,35 @@ public class UIManager : MonoBehaviour
         if (floatingTextObject != null)
         {
             floatingTextObject.SetActive(false);
+        }
+    }
+
+    public void SetMinigameStatus(string message)
+    {
+        if (minigameStatusText != null)
+        {
+            minigameStatusText.text = message;
+        }
+    }
+
+    public void SetPlayersEliminatedStatus(string message)
+    {
+        if (playersEliminatedStatusText != null)
+        {
+            playersEliminatedStatusText.text = message;
+        }
+    }
+
+    public void ClearStatusUI()
+    {
+        if (minigameStatusText != null)
+        {
+            minigameStatusText.text = "";
+        }
+
+        if (playersEliminatedStatusText != null)
+        {
+            playersEliminatedStatusText.text = "";
         }
     }
 
