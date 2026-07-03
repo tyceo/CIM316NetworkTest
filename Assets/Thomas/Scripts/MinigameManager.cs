@@ -18,12 +18,6 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private float winnerDisplayDelay = 10f;
     [SerializeField] private TextMeshProUGUI currentMinigameText;
     [SerializeField] private TextMeshProUGUI playersEliminatedText;
-
-    [Header("Floating Player UI")]
-    [SerializeField] private GameObject floatingTextObject;
-    [SerializeField] private TextMeshPro floatingText;
-
-    [Header("Extra Minigame Objects")]
     [SerializeField] private GameObject gunPrefab;
     [SerializeField] private GameObject liftObject;
     [SerializeField] private float liftDuration = 3f;
@@ -36,7 +30,6 @@ public class MinigameManager : NetworkBehaviour
     private NetworkVariable<bool> shouldHideObject = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> minigameRunning = new NetworkVariable<bool>(false);
     public NetworkVariable<int> currentMinigame = new NetworkVariable<int>(4);
-    // Minigame names: none=0, flashlight=1, oneSword=2, oneShot=3
 
     private NetworkVariable<bool> isLoadingMinigame = new NetworkVariable<bool>(false);
     private float loadingMinigameDuration = 3f;
@@ -50,6 +43,7 @@ public class MinigameManager : NetworkBehaviour
     private Vector3 swordOriginalPosition;
     private GameObject swordObject;
     private Coroutine moveSwordCoroutine = null;
+
     private Vector3[] swordSpawnPositions = new Vector3[]
     {
         new Vector3(291.220001f, 133.660004f, -64.75f),
@@ -61,7 +55,6 @@ public class MinigameManager : NetworkBehaviour
     private int lastMinigame = -1;
     private int lastEliminatedCount = 0;
 
-    // Returns a random minigame (1-3) that is never the same as lastMinigame
     int RollMinigame()
     {
         List<int> options = new List<int> { 1, 2, 3 };
@@ -71,20 +64,23 @@ public class MinigameManager : NetworkBehaviour
         return chosen;
     }
 
-    // Shows "Currently loading" for loadingMinigameDuration seconds, then applies the new minigame
     IEnumerator TransitionToMinigame(int newMinigame)
     {
         isLoadingMinigame.Value = true;
+
+        ShowInstructionRpc(GetInstructionForMinigame(newMinigame), loadingMinigameDuration);
+
         yield return new WaitForSeconds(loadingMinigameDuration);
+
         isLoadingMinigame.Value = false;
         currentMinigame.Value = newMinigame;
     }
 
     void Start()
     {
-        
         currentMinigame.OnValueChanged += OnMinigameChanged;
         isLoadingMinigame.OnValueChanged += (prev, next) => UpdateMinigameText();
+
         StoreFlashlightPositions();
         StoreSwordPosition();
         UpdateIceCubes();
@@ -92,8 +88,8 @@ public class MinigameManager : NetworkBehaviour
         UpdateSword();
         UpdateGuns();
         UpdateMinigameText();
+
         currentMinigame.Value = 4;
-        HideFloatingText();
     }
 
     void Update()
@@ -134,6 +130,7 @@ public class MinigameManager : NetworkBehaviour
         }
 
         string minigameName = "";
+
         switch (currentMinigame.Value)
         {
             case 0:
@@ -338,9 +335,11 @@ public class MinigameManager : NetworkBehaviour
                 {
                     networkObject.Despawn();
                 }
+
                 Destroy(gun);
             }
         }
+
         spawnedGuns.Clear();
     }
 
@@ -354,6 +353,7 @@ public class MinigameManager : NetworkBehaviour
             if (grabInteractable != null && grabInteractable.isSelected)
             {
                 var interactors = new List<UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor>(grabInteractable.interactorsSelecting);
+
                 foreach (var interactor in interactors)
                 {
                     grabInteractable.interactionManager.SelectExit(interactor, grabInteractable);
@@ -419,6 +419,7 @@ public class MinigameManager : NetworkBehaviour
         if (grabInteractable != null && grabInteractable.isSelected)
         {
             var interactors = new List<UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor>(grabInteractable.interactorsSelecting);
+
             foreach (var interactor in interactors)
             {
                 grabInteractable.interactionManager.SelectExit(interactor, grabInteractable);
@@ -489,24 +490,20 @@ public class MinigameManager : NetworkBehaviour
 
         int playersRemaining = allPlayers.Length - playersAboveThreshold;
 
-        // Only trigger a transition if a new elimination has occurred since the last switch
         if (playersAboveThreshold > 0 && playersAboveThreshold > lastEliminatedCount)
         {
             lastEliminatedCount = playersAboveThreshold;
 
             if (allPlayers.Length < 6)
             {
-                // Less than 6 players: switch minigame whenever anyone new dies
                 StartCoroutine(TransitionToMinigame(RollMinigame()));
             }
             else if (playersRemaining <= allPlayers.Length / 2)
             {
-                // 6 or more players: switch when half are eliminated
                 StartCoroutine(TransitionToMinigame(RollMinigame()));
             }
         }
 
-        // Check if all or all but one players are above the threshold
         if (playersAboveThreshold >= allPlayers.Length - 1 && playersAboveThreshold > 0)
         {
             StartCoroutine(HandleMinigameEnd());
@@ -519,25 +516,23 @@ public class MinigameManager : NetworkBehaviour
 
         shouldHideObject.Value = true;
 
-        ShowFloatingTextRpc("1 PLAYER REMAINING");
+        ShowInstructionRpc("1 PLAYER REMAINING", 2f);
         yield return new WaitForSeconds(2f);
 
-        ShowFloatingTextRpc("NEXT ROUND");
+        ShowInstructionRpc("NEXT ROUND", 2f);
         yield return new WaitForSeconds(2f);
 
-        ShowFloatingTextRpc("3");
+        ShowInstructionRpc("3", 1f);
         yield return new WaitForSeconds(1f);
 
-        ShowFloatingTextRpc("2");
+        ShowInstructionRpc("2", 1f);
         yield return new WaitForSeconds(1f);
 
-        ShowFloatingTextRpc("1");
+        ShowInstructionRpc("1", 1f);
         yield return new WaitForSeconds(1f);
 
-        ShowFloatingTextRpc("GO!");
+        ShowInstructionRpc("GO!", 1f);
         yield return new WaitForSeconds(1f);
-
-        HideFloatingTextRpc();
 
         yield return new WaitForSeconds(winnerDisplayDelay);
 
@@ -550,42 +545,12 @@ public class MinigameManager : NetworkBehaviour
         shouldHideObject.Value = false;
     }
 
-    [Rpc(SendTo.Everyone)]
-    private void ShowFloatingTextRpc(string message)
-    {
-        if (floatingTextObject != null)
-        {
-            floatingTextObject.SetActive(true);
-        }
-
-        if (floatingText != null)
-        {
-            floatingText.text = message;
-        }
-    }
-
-    [Rpc(SendTo.Everyone)]
-    private void HideFloatingTextRpc()
-    {
-        HideFloatingText();
-    }
-
-    private void HideFloatingText()
-    {
-        if (floatingTextObject != null)
-        {
-            floatingTextObject.SetActive(false);
-        }
-    }
-
     public void StartMinigame()
     {
         if (!IsOwner) return;
 
-        // Cancel any in-progress coroutines from the previous game
         StopAllCoroutines();
 
-        // Reset all state that may have been left dirty
         isProcessingWin = false;
         isLoadingMinigame.Value = false;
         shouldHideObject.Value = false;
@@ -594,13 +559,17 @@ public class MinigameManager : NetworkBehaviour
         StartCoroutine(StartMinigameDelayed());
     }
 
-    // button
     IEnumerator StartMinigameDelayed()
     {
         lastEliminatedCount = 0;
         currentMinigame.Value = RollMinigame();
+
+        ShowInstructionRpc(GetInstructionForMinigame(currentMinigame.Value), 3f);
+
         TeleportAllPlayersToSpawns();
+
         yield return new WaitForSeconds(minigameStartDelay);
+
         minigameRunning.Value = true;
     }
 
@@ -628,21 +597,20 @@ public class MinigameManager : NetworkBehaviour
         if (XRINetworkPlayer.LocalPlayer != null && XRINetworkPlayer.LocalPlayer.OwnerClientId == playerClientId)
         {
             TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
+
             if (teleportationProvider == null)
             {
                 Debug.LogError("Local player does not have a teleportation provider!");
+                return;
             }
 
-            if (teleportationProvider != null)
+            TeleportRequest teleportRequest = new TeleportRequest
             {
-                TeleportRequest teleportRequest = new TeleportRequest
-                {
-                    destinationPosition = spawnLocations[spawnIndex].position,
-                    destinationRotation = spawnLocations[spawnIndex].rotation
-                };
+                destinationPosition = spawnLocations[spawnIndex].position,
+                destinationRotation = spawnLocations[spawnIndex].rotation
+            };
 
-                teleportationProvider.QueueTeleportRequest(teleportRequest);
-            }
+            teleportationProvider.QueueTeleportRequest(teleportRequest);
         }
     }
 
@@ -668,6 +636,30 @@ public class MinigameManager : NetworkBehaviour
         }
     }
 
+    [Rpc(SendTo.Everyone)]
+    private void ShowInstructionRpc(string message, float duration)
+    {
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowMessage(message, duration);
+        }
+    }
+
+    private string GetInstructionForMinigame(int minigame)
+    {
+        switch (minigame)
+        {
+            case 1:
+                return "USE THE FLASHLIGHT TO SHRINK THE OPPONENTS!";
+            case 2:
+                return "AVOID THE SWORD. SURVIVE THE ROUND!";
+            case 3:
+                return "GRAB THE GUN. ONE SHOT ONLY!";
+            default:
+                return "GET READY!";
+        }
+    }
+
     public void TriggerLift()
     {
         if (!IsOwner) return;
@@ -683,7 +675,7 @@ public class MinigameManager : NetworkBehaviour
             StopCoroutine(liftCoroutine);
         }
 
-        ShowFloatingTextRpc("LIFT ROUND");
+        ShowInstructionRpc("LIFT ROUND!", 2f);
         liftCoroutine = StartCoroutine(LiftRoutine());
     }
 
@@ -706,6 +698,7 @@ public class MinigameManager : NetworkBehaviour
         }
 
         liftObject.transform.position = endPosition;
+
         yield return new WaitForSeconds(liftStayDuration);
 
         timer = 0f;
@@ -719,17 +712,14 @@ public class MinigameManager : NetworkBehaviour
         }
 
         liftObject.transform.position = startPosition;
-        HideFloatingTextRpc();
     }
 
     public void SpawnSingleGun()
     {
         if (!IsOwner) return;
 
-        ShowFloatingTextRpc("ONESHOT ROUND");
+        ShowInstructionRpc("GRAB THE GUN. ONE SHOT ONLY!", 3f);
 
-        // This uses the newer gun system already in this script.
-        // Setting currentMinigame to 3 calls UpdateGuns(), which spawns guns using gunPrefab.
         currentMinigame.Value = 3;
     }
 }
