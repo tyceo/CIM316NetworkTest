@@ -616,7 +616,7 @@ public class MinigameManager : NetworkBehaviour
         lastEliminatedCount = 0;
         currentMinigame.Value = RollMinigame();
 
-        ShowInstructionRpc(GetInstructionForMinigame(currentMinigame.Value), 3f);
+        ShowInstructionRpc(GetInstructionForMinigame(currentMinigame.Value), 7f);
 
         TeleportAllPlayersToSpawns();
 
