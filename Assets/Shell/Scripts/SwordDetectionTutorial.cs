@@ -1,10 +1,10 @@
 using System.Collections;
 using UnityEngine;
 
-public class SwordTutorialDetection : MonoBehaviour
+public class SwordDetectionTutorial : MonoBehaviour
 {
-    [Header("Sword Detection")]
-    [SerializeField] private string swordLayerName = "Sword";
+    [Header("Sword")]
+    [SerializeField] private GameObject tutorialSword;
 
     [Header("Dummy")]
     [SerializeField] private GameObject dummyRoot;
@@ -15,6 +15,8 @@ public class SwordTutorialDetection : MonoBehaviour
     [SerializeField] private ParticleSystem hitEffect;
 
     private bool isEliminated = false;
+    private Renderer[] dummyRenderers;
+    private Collider[] dummyColliders;
 
     private void Start()
     {
@@ -22,6 +24,9 @@ public class SwordTutorialDetection : MonoBehaviour
         {
             dummyRoot = gameObject;
         }
+
+        dummyRenderers = dummyRoot.GetComponentsInChildren<Renderer>(true);
+        dummyColliders = dummyRoot.GetComponentsInChildren<Collider>(true);
     }
 
     private void OnTriggerEnter(Collider other)
@@ -31,15 +36,23 @@ public class SwordTutorialDetection : MonoBehaviour
             return;
         }
 
-        if (other.gameObject.layer == LayerMask.NameToLayer(swordLayerName))
+        if (tutorialSword == null)
         {
-            StartCoroutine(EliminateRoutine());
+            Debug.LogWarning("Tutorial Sword is not assigned.");
+            return;
+        }
+
+        if (other.transform.root.gameObject == tutorialSword || other.transform.IsChildOf(tutorialSword.transform))
+        {
+            StartCoroutine(EliminateDummyRoutine());
         }
     }
 
-    private IEnumerator EliminateRoutine()
+    private IEnumerator EliminateDummyRoutine()
     {
         isEliminated = true;
+
+        Debug.Log("Dummy eliminated.");
 
         if (hitSound != null)
         {
@@ -51,12 +64,33 @@ public class SwordTutorialDetection : MonoBehaviour
             hitEffect.Play();
         }
 
-        dummyRoot.SetActive(false);
+        SetDummyVisible(false);
 
         yield return new WaitForSeconds(respawnDelay);
 
-        dummyRoot.SetActive(true);
+        SetDummyVisible(true);
 
         isEliminated = false;
+
+        Debug.Log("Dummy respawned.");
+    }
+
+    private void SetDummyVisible(bool visible)
+    {
+        foreach (Renderer renderer in dummyRenderers)
+        {
+            if (renderer != null)
+            {
+                renderer.enabled = visible;
+            }
+        }
+
+        foreach (Collider collider in dummyColliders)
+        {
+            if (collider != null && collider != GetComponent<Collider>())
+            {
+                collider.enabled = visible;
+            }
+        }
     }
 }
