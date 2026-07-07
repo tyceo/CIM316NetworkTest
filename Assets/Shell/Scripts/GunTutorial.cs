@@ -25,14 +25,6 @@ public class GunTutorial : MonoBehaviour
         }
     }
 
-    void Update()
-    {
-        if (Time.time >= nextFireTime)
-        {
-
-        }
-    }
-
     public void Shoot()
     {
         if (Time.time < nextFireTime)
@@ -82,7 +74,16 @@ public class GunTutorial : MonoBehaviour
     private IEnumerator DestroyAfterDelay(float delay)
     {
         yield return new WaitForSeconds(delay);
-        Destroy(gameObject);
+
+        TutorialItem item = GetComponent<TutorialItem>();
+        if (item != null)
+        {
+            item.UseItem();
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
     private Transform FindChildRecursive(Transform parent, string childName)

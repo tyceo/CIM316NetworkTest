@@ -28,10 +28,7 @@ public class GunDetectionTutorial : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (isEliminated)
-        {
-            return;
-        }
+        if (isEliminated) return;
 
         if (other.name.Contains("LaserPoint") || other.name.Contains("Pole"))
         {
@@ -41,10 +38,7 @@ public class GunDetectionTutorial : MonoBehaviour
 
     public void EliminateDummy()
     {
-        if (isEliminated)
-        {
-            return;
-        }
+        if (isEliminated) return;
 
         StartCoroutine(EliminateRoutine());
     }

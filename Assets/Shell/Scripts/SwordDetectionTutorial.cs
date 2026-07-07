@@ -31,10 +31,7 @@ public class SwordDetectionTutorial : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (isEliminated)
-        {
-            return;
-        }
+        if (isEliminated) return;
 
         if (tutorialSword == null)
         {
@@ -52,8 +49,6 @@ public class SwordDetectionTutorial : MonoBehaviour
     {
         isEliminated = true;
 
-        Debug.Log("Dummy eliminated.");
-
         if (hitSound != null)
         {
             hitSound.Play();
@@ -66,13 +61,17 @@ public class SwordDetectionTutorial : MonoBehaviour
 
         SetDummyVisible(false);
 
+        TutorialItem item = tutorialSword.GetComponent<TutorialItem>();
+        if (item != null)
+        {
+            item.UseItem();
+        }
+
         yield return new WaitForSeconds(respawnDelay);
 
         SetDummyVisible(true);
 
         isEliminated = false;
-
-        Debug.Log("Dummy respawned.");
     }
 
     private void SetDummyVisible(bool visible)

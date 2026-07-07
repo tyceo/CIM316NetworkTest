@@ -8,6 +8,9 @@ public class IceShrinkingTutorial : MonoBehaviour
     [SerializeField] private float minScale = 0.11f;
     [SerializeField] private float resetDelay = 2f;
 
+    [Header("Flashlight")]
+    [SerializeField] private GameObject tutorialFlashlight;
+
     private bool isBeingLit = false;
     private bool isResetting = false;
 
@@ -22,7 +25,6 @@ public class IceShrinkingTutorial : MonoBehaviour
 
     void Update()
     {
-        // Stop shrinking if flashlight isn't hitting anymore
         if (Time.time - lastHitTime > hitTimeout)
         {
             isBeingLit = false;
@@ -41,8 +43,7 @@ public class IceShrinkingTutorial : MonoBehaviour
 
     public void OnFlashlightHit()
     {
-        if (isResetting)
-            return;
+        if (isResetting) return;
 
         isBeingLit = true;
         lastHitTime = Time.time;
@@ -52,7 +53,14 @@ public class IceShrinkingTutorial : MonoBehaviour
     {
         isResetting = true;
 
-        Debug.Log("Tutorial Complete!");
+        if (tutorialFlashlight != null)
+        {
+            TutorialItem item = tutorialFlashlight.GetComponent<TutorialItem>();
+            if (item != null)
+            {
+                item.UseItem();
+            }
+        }
 
         yield return new WaitForSeconds(resetDelay);
 
