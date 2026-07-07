@@ -3,9 +3,6 @@ using UnityEngine;
 
 public class SwordDetectionTutorial : MonoBehaviour
 {
-    [Header("Sword")]
-    [SerializeField] private GameObject tutorialSword;
-
     [Header("Dummy")]
     [SerializeField] private GameObject dummyRoot;
     [SerializeField] private float respawnDelay = 2f;
@@ -31,21 +28,20 @@ public class SwordDetectionTutorial : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        if (isEliminated) return;
-
-        if (tutorialSword == null)
+        if (isEliminated)
         {
-            Debug.LogWarning("Tutorial Sword is not assigned.");
             return;
         }
 
-        if (other.transform.root.gameObject == tutorialSword || other.transform.IsChildOf(tutorialSword.transform))
+        TutorialItem item = other.GetComponentInParent<TutorialItem>();
+
+        if (item != null)
         {
-            StartCoroutine(EliminateDummyRoutine());
+            StartCoroutine(EliminateDummyRoutine(item));
         }
     }
 
-    private IEnumerator EliminateDummyRoutine()
+    private IEnumerator EliminateDummyRoutine(TutorialItem item)
     {
         isEliminated = true;
 
@@ -61,11 +57,7 @@ public class SwordDetectionTutorial : MonoBehaviour
 
         SetDummyVisible(false);
 
-        TutorialItem item = tutorialSword.GetComponent<TutorialItem>();
-        if (item != null)
-        {
-            item.UseItem();
-        }
+        item.UseItem();
 
         yield return new WaitForSeconds(respawnDelay);
 

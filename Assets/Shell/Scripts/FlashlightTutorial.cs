@@ -87,7 +87,8 @@ public class FlashlightTutorial : MonoBehaviour
 
             if (tutorialTarget != null)
             {
-                tutorialTarget.OnFlashlightHit();
+             TutorialItem item = GetComponent<TutorialItem>();
+            tutorialTarget.OnFlashlightHit(item);
             }
         }
     }

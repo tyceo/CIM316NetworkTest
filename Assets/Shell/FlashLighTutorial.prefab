@@ -5560,6 +5560,7 @@ GameObject:
   - component: {fileID: 7957608805646313831}
   - component: {fileID: 5528477464465804912}
   - component: {fileID: -4967122653064026621}
+  - component: {fileID: -7997685394040878963}
   m_Layer: 0
   m_Name: FlashLighTutorial
   m_TagString: flashlight
@@ -5816,6 +5817,26 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 80032ef1b3e2f4cad987e185fcfcd21b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TutorialItem
+--- !u!114 &-7997685394040878963
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6206489085234797607}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 56481b9e209fe43e0b54ce3500acbcb3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FlashlightTutorial
+  range: 10
+  flashlightLight: {fileID: 3181563059926449701}
+  targetLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  isOn: 1
+  coneAngle: 30
+  rayCount: 32
 --- !u!1 &7424673684668148880
 GameObject:
   m_ObjectHideFlags: 0

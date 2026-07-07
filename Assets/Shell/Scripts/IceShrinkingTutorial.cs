@@ -8,15 +8,14 @@ public class IceShrinkingTutorial : MonoBehaviour
     [SerializeField] private float minScale = 0.11f;
     [SerializeField] private float resetDelay = 2f;
 
-    [Header("Flashlight")]
-    [SerializeField] private GameObject tutorialFlashlight;
-
     private bool isBeingLit = false;
     private bool isResetting = false;
 
     private Vector3 originalScale;
     private float lastHitTime;
     private float hitTimeout = 0.1f;
+
+    private TutorialItem currentFlashlightItem;
 
     void Start()
     {
@@ -28,6 +27,7 @@ public class IceShrinkingTutorial : MonoBehaviour
         if (Time.time - lastHitTime > hitTimeout)
         {
             isBeingLit = false;
+            currentFlashlightItem = null;
         }
 
         if (isBeingLit && !isResetting)
@@ -41,10 +41,14 @@ public class IceShrinkingTutorial : MonoBehaviour
         }
     }
 
-    public void OnFlashlightHit()
+    public void OnFlashlightHit(TutorialItem flashlightItem)
     {
-        if (isResetting) return;
+        if (isResetting)
+        {
+            return;
+        }
 
+        currentFlashlightItem = flashlightItem;
         isBeingLit = true;
         lastHitTime = Time.time;
     }
@@ -53,13 +57,9 @@ public class IceShrinkingTutorial : MonoBehaviour
     {
         isResetting = true;
 
-        if (tutorialFlashlight != null)
+        if (currentFlashlightItem != null)
         {
-            TutorialItem item = tutorialFlashlight.GetComponent<TutorialItem>();
-            if (item != null)
-            {
-                item.UseItem();
-            }
+            currentFlashlightItem.UseItem();
         }
 
         yield return new WaitForSeconds(resetDelay);
@@ -68,5 +68,6 @@ public class IceShrinkingTutorial : MonoBehaviour
 
         isBeingLit = false;
         isResetting = false;
+        currentFlashlightItem = null;
     }
 }
