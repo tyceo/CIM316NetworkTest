@@ -26,6 +26,19 @@ public class GunDetectionTutorial : MonoBehaviour
         dummyColliders = dummyRoot.GetComponentsInChildren<Collider>(true);
     }
 
+    private void OnTriggerEnter(Collider other)
+    {
+        if (isEliminated)
+        {
+            return;
+        }
+
+        if (other.name.Contains("LaserPoint") || other.name.Contains("Pole"))
+        {
+            EliminateDummy();
+        }
+    }
+
     public void EliminateDummy()
     {
         if (isEliminated)
