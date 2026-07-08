@@ -5830,7 +5830,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::FlashlightTutorial
   range: 10
-  flashlightLight: {fileID: 3181563059926449701}
+  flashlightLight: {fileID: 0}
   targetLayers:
     serializedVersion: 2
     m_Bits: 4294967295
