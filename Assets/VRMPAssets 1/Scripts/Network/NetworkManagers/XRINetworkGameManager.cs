@@ -269,7 +269,7 @@ namespace XRMultiplayer
         IEnumerator AutoQuickJoinAfterDelay(float delay)
         {
             yield return new WaitForSeconds(delay);
-            QuickJoinLobby();
+            //QuickJoinLobby();
         }
 
         /// <summary>

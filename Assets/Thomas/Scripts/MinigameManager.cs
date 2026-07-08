@@ -21,6 +21,7 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private GameObject gunPrefab;
     [SerializeField] private GameObject liftObject;
     [SerializeField] private float liftDuration = 3f;
+    [SerializeField] private GameObject bombPrefab;
 
     private float liftYStart = -18f;
     private float liftYEnd = 127.7f;
@@ -52,12 +53,13 @@ public class MinigameManager : NetworkBehaviour
     };
 
     private List<GameObject> spawnedGuns = new List<GameObject>();
+    private List<GameObject> spawnedBombs = new List<GameObject>();
     private int lastMinigame = -1;
     private int lastEliminatedCount = 0;
 
     int RollMinigame()
     {
-        List<int> options = new List<int> { 1, 2, 3 };
+        List<int> options = new List<int> { 1, 2, 3, 4 };
         options.Remove(lastMinigame);
 
         int chosen = options[Random.Range(0, options.Count)];
@@ -89,6 +91,7 @@ public class MinigameManager : NetworkBehaviour
         UpdateFlashlights();
         UpdateSword();
         UpdateGuns();
+        UpdateBombs();
         UpdateMinigameText();
 
         currentMinigame.Value = 4;
@@ -120,6 +123,7 @@ public class MinigameManager : NetworkBehaviour
         UpdateFlashlights();
         UpdateSword();
         UpdateGuns();
+        UpdateBombs();
         UpdateMinigameText();
         ResetIceCubeSizes();
     }
@@ -160,6 +164,9 @@ public class MinigameManager : NetworkBehaviour
                 break;
             case 3:
                 minigameName = "ONESHOT";
+                break;
+            case 4:
+                minigameName = "HOTPOTATO";
                 break;
             default:
                 minigameName = "UNKNOWN";
@@ -326,6 +333,19 @@ public class MinigameManager : NetworkBehaviour
             CleanupGuns();
         }
     }
+    void UpdateBombs()
+    {
+        bool shouldSpawn = currentMinigame.Value == 4;
+
+        if (shouldSpawn)
+        {
+            SpawnBomb();
+        }
+        else
+        {
+            CleanupBombs();
+        }
+    }
 
     void SpawnGuns()
     {
@@ -389,6 +409,66 @@ public class MinigameManager : NetworkBehaviour
         }
 
         spawnedGuns.Clear();
+    }
+    void SpawnBomb()
+    {
+        if (!IsOwner) return;
+
+        if (bombPrefab == null)
+        {
+            Debug.LogWarning("Bomb prefab is not assigned!");
+            return;
+        }
+
+        CleanupBombs();
+
+        // Spawn a single bomb at a random spawn location
+        if (spawnLocations.Length > 0)
+        {
+            int randomIndex = Random.Range(0, spawnLocations.Length);
+            Vector3 spawnPosition = spawnLocations[randomIndex].position;
+            SpawnBombServerRpc(spawnPosition, Quaternion.identity);
+        }
+    }
+
+    [Rpc(SendTo.Server)]
+    void SpawnBombServerRpc(Vector3 position, Quaternion rotation)
+    {
+        GameObject bomb = Instantiate(bombPrefab, position, rotation);
+        NetworkObject networkObject = bomb.GetComponent<NetworkObject>();
+
+        if (networkObject != null)
+        {
+            networkObject.Spawn();
+            spawnedBombs.Add(bomb);
+        }
+        else
+        {
+            Debug.LogError("Bomb prefab doesn't have a NetworkObject component!");
+            Destroy(bomb);
+        }
+    }
+
+    void CleanupBombs()
+    {
+        if (!IsOwner) return;
+
+        foreach (GameObject bomb in spawnedBombs)
+        {
+            if (bomb != null)
+            {
+                NetworkObject networkObject = bomb.GetComponent<NetworkObject>();
+
+                if (networkObject != null && networkObject.IsSpawned)
+                {
+                    networkObject.Despawn();
+                }
+
+                Destroy(bomb);
+            }
+        }
+
+        spawnedBombs.Clear();
     }
 
     void DropAllFlashlights(GameObject[] flashlights)
@@ -589,6 +669,7 @@ public class MinigameManager : NetworkBehaviour
         yield return new WaitForSeconds(winnerDisplayDelay);
 
         CleanupGuns();
+        CleanupBombs();
 
         minigameRunning.Value = false;
         ResetAllPlayersRpc();
@@ -707,6 +788,8 @@ public class MinigameManager : NetworkBehaviour
                 return "FIRST ONE TO GET THE SWORD CAN ELIMINATE THE OPPONENTS. SURVIVE THE ROUND!";
             case 3:
                 return "GRAB THE GUN. ONE SHOT ONLY!";
+            case 4:
+                return "PASS THE BOMB! DON'T BE HOLDING IT WHEN IT EXPLODES!";
             default:
                 return "GET READY!";
         }
@@ -733,14 +816,25 @@ public class MinigameManager : NetworkBehaviour
 
     IEnumerator LiftRoutine()
     {
-        Vector3 startPosition = liftObject.transform.position;
-        startPosition.y = liftYStart;
+        // Explicitly set the lift to start position at the beginning
+        Vector3 startPosition = new Vector3(
+            liftObject.transform.position.x,
+            liftYStart,
+            liftObject.transform.position.z
+        );
+        
+        Vector3 endPosition = new Vector3(
+            liftObject.transform.position.x,
+            liftYEnd,
+            liftObject.transform.position.z
+        );
 
-        Vector3 endPosition = liftObject.transform.position;
-        endPosition.y = liftYEnd;
+        // Immediately set to start position
+        liftObject.transform.position = startPosition;
 
         float timer = 0f;
 
+        // Move up
         while (timer < liftDuration)
         {
             float progress = timer / liftDuration;
@@ -753,6 +847,7 @@ public class MinigameManager : NetworkBehaviour
 
         yield return new WaitForSeconds(liftStayDuration);
 
+        // Move down
         timer = 0f;
 
         while (timer < liftDuration)
