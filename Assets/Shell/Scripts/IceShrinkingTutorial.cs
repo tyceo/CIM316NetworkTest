@@ -57,11 +57,13 @@ public class IceShrinkingTutorial : MonoBehaviour
     {
         isResetting = true;
 
+        // Destroy/respawn the flashlight immediately when the ice is fully shrunk.
         if (currentFlashlightItem != null)
         {
             currentFlashlightItem.UseItem();
         }
 
+        // Wait before resetting the ice/dummy size.
         yield return new WaitForSeconds(resetDelay);
 
         transform.localScale = originalScale;

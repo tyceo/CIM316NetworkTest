@@ -5834,7 +5834,7 @@ MonoBehaviour:
   targetLayers:
     serializedVersion: 2
     m_Bits: 4294967295
-  isOn: 1
+  isOn: 0
   coneAngle: 30
   rayCount: 32
 --- !u!1 &7424673684668148880
