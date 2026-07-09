@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: afd67064c102a44bb9981afec35fd7ce
+guid: bce424694911d4db49ee206dd24954f0
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Simply Retro
+  - Jumbalo
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0
