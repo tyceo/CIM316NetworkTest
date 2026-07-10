@@ -134,7 +134,7 @@ public class MinigameManager : NetworkBehaviour
 
         if (isLoadingMinigame.Value)
         {
-            message = "Current Minigame: Currently loading";
+            message = "Currently loading";
 
             if (currentMinigameText != null)
             {

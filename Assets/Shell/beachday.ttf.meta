@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: 5c96a8690b7224abf87a4ef281de9bbb
+guid: a9396c7c4dbf54efa9fe58a66db685db
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Laruku
+  - Beachday
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0

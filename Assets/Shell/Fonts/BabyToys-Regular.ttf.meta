@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: bce424694911d4db49ee206dd24954f0
+guid: bc795db174b6c48a79222abc34956302
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Jumbalo
+  - Baby Toys
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0
