@@ -852,9 +852,9 @@ public class MinigameManager : NetworkBehaviour
         switch (minigame)
         {
             case 1:
-                return "USE THE FLASHLIGHT TO SHRINK THE OPPONENTS!";
+                return "USE THE FLASHLIGHT TO SHRINK THE OPPONENTS HEADS!";
             case 2:
-                return "FIRST ONE TO GET THE SWORD CAN ELIMINATE THE OPPONENTS. SURVIVE THE ROUND!";
+                return "FIND THE SWORD! SWING IT TO ELIMINATE OPPONENTS!";
             case 3:
                 return "GRAB THE GUN. ONE SHOT ONLY!";
             case 4:
