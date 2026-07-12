@@ -71,13 +71,20 @@ public class MinigameManager : NetworkBehaviour
     IEnumerator TransitionToMinigame(int newMinigame)
     {
         isLoadingMinigame.Value = true;
+        minigameRunning.Value = false;
 
-        ShowInstructionRpc(GetInstructionForMinigame(newMinigame), loadingMinigameDuration);
+        currentMinigame.Value = newMinigame;
 
-        yield return new WaitForSeconds(loadingMinigameDuration);
+        string minigameName = GetMinigameName(newMinigame);
+        string playersMessage = GetPlayersRemainingMessage();
+        string instruction = GetInstructionForMinigame(newMinigame);
+
+        ShowRoundSequenceRpc(minigameName, playersMessage, instruction);
+
+        yield return new WaitForSeconds(GetRoundSequenceDuration());
 
         isLoadingMinigame.Value = false;
-        currentMinigame.Value = newMinigame;
+        minigameRunning.Value = true;
     }
 
     void Start()
@@ -188,39 +195,22 @@ public class MinigameManager : NetworkBehaviour
 
     void UpdatePlayersEliminatedText()
     {
-        XRINetworkPlayer[] allPlayers = FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
+        XRINetworkPlayer[] allPlayers =
+            FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
 
-        if (allPlayers.Length == 0)
-        {
-            string emptyMessage = "Players eliminated: 0/0";
-
-            if (playersEliminatedText != null)
-            {
-                playersEliminatedText.text = emptyMessage;
-            }
-
-            if (UIManager.Instance != null)
-            {
-                UIManager.Instance.SetPlayersEliminatedStatus(emptyMessage);
-            }
-
-            return;
-        }
-
-        int playersAboveThreshold = 0;
+        int totalPlayers = allPlayers.Length;
+        int eliminatedPlayers = 0;
 
         foreach (XRINetworkPlayer player in allPlayers)
         {
             if (player.transform.position.y > heightThreshold)
             {
-                playersAboveThreshold++;
+                eliminatedPlayers++;
             }
         }
 
-        int totalPlayers = allPlayers.Length;
-        int eliminatedPlayers = playersAboveThreshold;
-
-        string message = "Players eliminated: " + eliminatedPlayers + "/" + totalPlayers;
+        int playersRemaining = Mathf.Max(0, totalPlayers - eliminatedPlayers);
+        string message = "Players Remaining: " + playersRemaining + "/" + totalPlayers;
 
         if (playersEliminatedText != null)
         {
@@ -695,13 +685,19 @@ public class MinigameManager : NetworkBehaviour
     IEnumerator StartMinigameDelayed()
     {
         lastEliminatedCount = 0;
-        currentMinigame.Value = RollMinigame();
 
-        ShowInstructionRpc(GetInstructionForMinigame(currentMinigame.Value), 7f);
+        int selectedMinigame = RollMinigame();
+        currentMinigame.Value = selectedMinigame;
 
         TeleportAllPlayersToSpawns();
 
-        yield return new WaitForSeconds(minigameStartDelay);
+        string minigameName = GetMinigameName(selectedMinigame);
+        string playersMessage = GetPlayersRemainingMessage();
+        string instruction = GetInstructionForMinigame(selectedMinigame);
+
+        ShowRoundSequenceRpc(minigameName, playersMessage, instruction);
+
+        yield return new WaitForSeconds(GetRoundSequenceDuration());
 
         minigameRunning.Value = true;
     }
@@ -767,6 +763,79 @@ public class MinigameManager : NetworkBehaviour
         {
             shouldHideObject.Value = false;
         }
+    }
+
+
+    [Rpc(SendTo.Everyone)]
+    private void ShowRoundSequenceRpc(
+        string minigameName,
+        string playersMessage,
+        string instruction)
+    {
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.StartRoundSequence(
+                minigameName,
+                playersMessage,
+                instruction
+            );
+        }
+    }
+
+    private float GetRoundSequenceDuration()
+    {
+        if (UIManager.Instance != null)
+        {
+            return UIManager.Instance.RoundSequenceDuration;
+        }
+
+        // Safe fallback if a client has no UIManager reference.
+        return 8.4f;
+    }
+
+    private string GetMinigameName(int minigame)
+    {
+        switch (minigame)
+        {
+            case 1:
+                return "MELT";
+
+            case 2:
+                return "SWORD";
+
+            case 3:
+                return "ONESHOT";
+
+            case 4:
+                return "HOT POTATO";
+
+            default:
+                return "GET READY";
+        }
+    }
+
+    private string GetPlayersRemainingMessage()
+    {
+        XRINetworkPlayer[] allPlayers =
+            FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
+
+        int totalPlayers = allPlayers.Length;
+        int eliminatedPlayers = 0;
+
+        foreach (XRINetworkPlayer player in allPlayers)
+        {
+            if (player.transform.position.y > heightThreshold)
+            {
+                eliminatedPlayers++;
+            }
+        }
+
+        int playersRemaining = Mathf.Max(0, totalPlayers - eliminatedPlayers);
+
+        return "PLAYERS REMAINING\n" +
+               playersRemaining +
+               "/" +
+               totalPlayers;
     }
 
     [Rpc(SendTo.Everyone)]
