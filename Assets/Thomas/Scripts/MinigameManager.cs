@@ -30,12 +30,13 @@ public class MinigameManager : NetworkBehaviour
 
     private NetworkVariable<bool> shouldHideObject = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> minigameRunning = new NetworkVariable<bool>(false);
-    public NetworkVariable<int> currentMinigame = new NetworkVariable<int>(4);
+    public NetworkVariable<int> currentMinigame = new NetworkVariable<int>(0);
 
     private NetworkVariable<bool> isLoadingMinigame = new NetworkVariable<bool>(false);
     private float loadingMinigameDuration = 3f;
 
     private bool isProcessingWin = false;
+    private bool isRoundTransitionRunning = false;
 
     private Dictionary<GameObject, Vector3> flashlightOriginalPositions = new Dictionary<GameObject, Vector3>();
     private Vector3 flashlightHidePosition = new Vector3(220.5f, -73.0199966f, -190f);
@@ -70,6 +71,12 @@ public class MinigameManager : NetworkBehaviour
 
     IEnumerator TransitionToMinigame(int newMinigame)
     {
+        if (isRoundTransitionRunning || isProcessingWin)
+        {
+            yield break;
+        }
+
+        isRoundTransitionRunning = true;
         isLoadingMinigame.Value = true;
         minigameRunning.Value = false;
 
@@ -79,12 +86,17 @@ public class MinigameManager : NetworkBehaviour
         string playersMessage = GetPlayersRemainingMessage();
         string instruction = GetInstructionForMinigame(newMinigame);
 
-        ShowRoundSequenceRpc(minigameName, playersMessage, instruction);
+        ShowRoundSequenceRpc(
+            minigameName,
+            playersMessage,
+            instruction
+        );
 
         yield return new WaitForSeconds(GetRoundSequenceDuration());
 
         isLoadingMinigame.Value = false;
         minigameRunning.Value = true;
+        isRoundTransitionRunning = false;
     }
 
     void Start()
@@ -101,7 +113,10 @@ public class MinigameManager : NetworkBehaviour
         UpdateBombs();
         UpdateMinigameText();
 
-        currentMinigame.Value = 4;
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowWelcomeMessage();
+        }
     }
 
     void Update()
@@ -121,7 +136,7 @@ public class MinigameManager : NetworkBehaviour
             currentMinigame.Value = currentMinigame.Value == 1 ? 0 : 1;
         }
 
-        UpdatePlayersEliminatedText();
+        // Player count is shown only during the round-introduction sequence.
     }
 
     void OnMinigameChanged(int previousValue, int newValue)
@@ -180,6 +195,16 @@ public class MinigameManager : NetworkBehaviour
                 break;
         }
 
+        if (currentMinigame.Value == 0)
+        {
+            if (currentMinigameText != null)
+            {
+                currentMinigameText.text = "";
+            }
+
+            return;
+        }
+
         message = "Current Minigame: " + minigameName;
 
         if (currentMinigameText != null)
@@ -195,32 +220,8 @@ public class MinigameManager : NetworkBehaviour
 
     void UpdatePlayersEliminatedText()
     {
-        XRINetworkPlayer[] allPlayers =
-            FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
-
-        int totalPlayers = allPlayers.Length;
-        int eliminatedPlayers = 0;
-
-        foreach (XRINetworkPlayer player in allPlayers)
-        {
-            if (player.transform.position.y > heightThreshold)
-            {
-                eliminatedPlayers++;
-            }
-        }
-
-        int playersRemaining = Mathf.Max(0, totalPlayers - eliminatedPlayers);
-        string message = "Players Remaining: " + playersRemaining + "/" + totalPlayers;
-
-        if (playersEliminatedText != null)
-        {
-            playersEliminatedText.text = message;
-        }
-
-        if (UIManager.Instance != null)
-        {
-            UIManager.Instance.SetPlayersEliminatedStatus(message);
-        }
+        // Intentionally left blank.
+        // The player count is shown before gameplay by StartRoundSequence().
     }
 
     void ResetIceCubeSizes()
@@ -594,11 +595,40 @@ public class MinigameManager : NetworkBehaviour
         MoveSwordToPosition(shouldShow);
     }
 
+
+    private List<XRINetworkPlayer> GetActiveNetworkPlayers()
+    {
+        XRINetworkPlayer[] foundPlayers =
+            FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
+
+        List<XRINetworkPlayer> activePlayers = new List<XRINetworkPlayer>();
+
+        foreach (XRINetworkPlayer player in foundPlayers)
+        {
+            if (player == null || !player.gameObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            NetworkObject networkObject = player.GetComponent<NetworkObject>();
+
+            if (networkObject != null && networkObject.IsSpawned)
+            {
+                activePlayers.Add(player);
+            }
+        }
+
+        return activePlayers;
+    }
+
     void CheckPlayersHeight()
     {
-        XRINetworkPlayer[] allPlayers = FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
+        List<XRINetworkPlayer> allPlayers = GetActiveNetworkPlayers();
 
-        if (allPlayers.Length == 0) return;
+        if (allPlayers.Count == 0)
+        {
+            return;
+        }
 
         int playersAboveThreshold = 0;
 
@@ -610,23 +640,18 @@ public class MinigameManager : NetworkBehaviour
             }
         }
 
-        int playersRemaining = allPlayers.Length - playersAboveThreshold;
+        int playersRemaining = allPlayers.Count - playersAboveThreshold;
 
-        if (playersAboveThreshold > 0 && playersAboveThreshold > lastEliminatedCount)
+        // Eliminated players wait. The minigame continues until one player remains.
+        if (playersAboveThreshold > lastEliminatedCount)
         {
             lastEliminatedCount = playersAboveThreshold;
-
-            if (allPlayers.Length < 6)
-            {
-                StartCoroutine(TransitionToMinigame(RollMinigame()));
-            }
-            else if (playersRemaining <= allPlayers.Length / 2)
-            {
-                StartCoroutine(TransitionToMinigame(RollMinigame()));
-            }
         }
 
-        if (playersAboveThreshold >= allPlayers.Length - 1 && playersAboveThreshold > 0)
+        if (allPlayers.Count > 1 &&
+            playersRemaining <= 1 &&
+            playersAboveThreshold > 0 &&
+            !isProcessingWin)
         {
             StartCoroutine(HandleMinigameEnd());
         }
@@ -634,38 +659,34 @@ public class MinigameManager : NetworkBehaviour
 
     IEnumerator HandleMinigameEnd()
     {
-        isProcessingWin = true;
+        if (isProcessingWin)
+        {
+            yield break;
+        }
 
+        isProcessingWin = true;
+        isRoundTransitionRunning = false;
+        minigameRunning.Value = false;
         shouldHideObject.Value = true;
 
-        ShowInstructionRpc("1 PLAYER REMAINING", 2f);
-        yield return new WaitForSeconds(2f);
+        CancelUIRpc();
+        ShowRoundResultRpc();
 
-        ShowInstructionRpc("NEXT ROUND", 2f);
-        yield return new WaitForSeconds(2f);
-
-        ShowInstructionRpc("3", 1f);
-        yield return new WaitForSeconds(1f);
-
-        ShowInstructionRpc("2", 1f);
-        yield return new WaitForSeconds(1f);
-
-        ShowInstructionRpc("1", 1f);
-        yield return new WaitForSeconds(1f);
-
-        ShowInstructionRpc("GO!", 1f);
-        yield return new WaitForSeconds(1f);
-
-        yield return new WaitForSeconds(winnerDisplayDelay);
+        // Give the winner and eliminated players time to read their result.
+        yield return new WaitForSeconds(3f);
 
         CleanupGuns();
         CleanupBombs();
 
-        minigameRunning.Value = false;
         ResetAllPlayersRpc();
+        yield return new WaitForSeconds(1f);
 
-        isProcessingWin = false;
+        lastEliminatedCount = 0;
         shouldHideObject.Value = false;
+        isProcessingWin = false;
+
+        // Automatically begin the next round. Do not return to the welcome screen.
+        StartCoroutine(StartMinigameDelayed());
     }
 
     public void StartMinigame()
@@ -675,30 +696,45 @@ public class MinigameManager : NetworkBehaviour
         StopAllCoroutines();
 
         isProcessingWin = false;
+        isRoundTransitionRunning = false;
         isLoadingMinigame.Value = false;
         shouldHideObject.Value = false;
         minigameRunning.Value = false;
 
+        CancelUIRpc();
+        HideWelcomeRpc();
         StartCoroutine(StartMinigameDelayed());
     }
 
     IEnumerator StartMinigameDelayed()
     {
         lastEliminatedCount = 0;
+        isRoundTransitionRunning = true;
+        isLoadingMinigame.Value = true;
+        minigameRunning.Value = false;
+
+        CancelUIRpc();
 
         int selectedMinigame = RollMinigame();
         currentMinigame.Value = selectedMinigame;
 
         TeleportAllPlayersToSpawns();
+        yield return new WaitForSeconds(minigameStartDelay);
 
         string minigameName = GetMinigameName(selectedMinigame);
         string playersMessage = GetPlayersRemainingMessage();
         string instruction = GetInstructionForMinigame(selectedMinigame);
 
-        ShowRoundSequenceRpc(minigameName, playersMessage, instruction);
+        ShowRoundSequenceRpc(
+            minigameName,
+            playersMessage,
+            instruction
+        );
 
         yield return new WaitForSeconds(GetRoundSequenceDuration());
 
+        isLoadingMinigame.Value = false;
+        isRoundTransitionRunning = false;
         minigameRunning.Value = true;
     }
 
@@ -766,6 +802,60 @@ public class MinigameManager : NetworkBehaviour
     }
 
 
+
+
+    [Rpc(SendTo.Everyone)]
+    private void CancelUIRpc()
+    {
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.CancelAllUI();
+        }
+    }
+
+
+    [Rpc(SendTo.Everyone)]
+    private void ShowRoundResultRpc()
+    {
+        if (UIManager.Instance == null)
+        {
+            return;
+        }
+
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y <= heightThreshold)
+        {
+            UIManager.Instance.ShowMessage("YOU WIN!", 3f);
+        }
+        else
+        {
+            UIManager.Instance.ShowMessage(
+                "ELIMINATED\\nWAIT FOR THE ROUND TO FINISH",
+                3f
+            );
+        }
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ShowWelcomeRpc()
+    {
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowWelcomeMessage();
+        }
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void HideWelcomeRpc()
+    {
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.HideWelcomeMessage();
+        }
+    }
+
     [Rpc(SendTo.Everyone)]
     private void ShowRoundSequenceRpc(
         string minigameName,
@@ -816,10 +906,9 @@ public class MinigameManager : NetworkBehaviour
 
     private string GetPlayersRemainingMessage()
     {
-        XRINetworkPlayer[] allPlayers =
-            FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
+        List<XRINetworkPlayer> allPlayers = GetActiveNetworkPlayers();
 
-        int totalPlayers = allPlayers.Length;
+        int totalPlayers = allPlayers.Count;
         int eliminatedPlayers = 0;
 
         foreach (XRINetworkPlayer player in allPlayers)
@@ -832,10 +921,7 @@ public class MinigameManager : NetworkBehaviour
 
         int playersRemaining = Mathf.Max(0, totalPlayers - eliminatedPlayers);
 
-        return "PLAYERS REMAINING\n" +
-               playersRemaining +
-               "/" +
-               totalPlayers;
+        return "PLAYERS REMAINING: " + playersRemaining + " / " + totalPlayers;
     }
 
     [Rpc(SendTo.Everyone)]
@@ -852,9 +938,9 @@ public class MinigameManager : NetworkBehaviour
         switch (minigame)
         {
             case 1:
-                return "USE THE FLASHLIGHT TO SHRINK THE OPPONENTS HEADS!";
+                return "USE THE FLASHLIGHT TO SHRINK THE OPPONENTS!";
             case 2:
-                return "FIND THE SWORD! SWING IT TO ELIMINATE OPPONENTS!";
+                return "FIRST ONE TO GET THE SWORD CAN ELIMINATE THE OPPONENTS. SURVIVE THE ROUND!";
             case 3:
                 return "GRAB THE GUN. ONE SHOT ONLY!";
             case 4:

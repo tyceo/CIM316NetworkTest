@@ -6,170 +6,236 @@ public class UIManager : MonoBehaviour
 {
     public static UIManager Instance;
 
-    [Header("Big Floating Instruction")]
+    [Header("Floating Instruction")]
     [SerializeField] private GameObject floatingTextObject;
     [SerializeField] private TextMeshPro floatingText;
 
-    [Header("Floating Status UI")]
+    [Header("Round Status")]
     [SerializeField] private TextMeshPro minigameStatusText;
-    [SerializeField] private TextMeshPro playersEliminatedStatusText;
+    [SerializeField] private TextMeshPro playersRemainingText;
 
-    [Header("General Timing")]
-    [SerializeField] private float defaultMessageDuration = 20f;
-    [SerializeField] private float statusDuration = 5f;
+    [Header("Welcome")]
+    [TextArea(2, 4)]
+    [SerializeField] private string welcomeMessage =
+        "WELCOME TO MINI MAYHEM!\nJOIN THE CHAOS ONLINE BY TOGGLING THE SWITCH UPWARDS.";
 
     [Header("Round Sequence Timing")]
-    [SerializeField] private float fadeDuration = 0.3f;
-    [SerializeField] private float statusDisplayDuration = 2f;
-    [SerializeField] private float countdownStepDuration = 1f;
-    [SerializeField] private float goDisplayDuration = 0.8f;
-    [SerializeField] private float instructionDisplayDuration = 2f;
+    [SerializeField] private float fadeDuration = 0.25f;
+    [SerializeField] private float statusDuration = 2f;
+    [SerializeField] private float instructionDuration = 2f;
 
-    private Coroutine currentMessageRoutine;
-    private Coroutine minigameStatusRoutine;
-    private Coroutine playersStatusRoutine;
-    private Coroutine roundSequenceRoutine;
+    private Coroutine activeSequence;
+    private Coroutine temporaryMessage;
+    private int sequenceVersion;
 
-    private string lastMinigameStatus = "";
-    private string lastPlayersStatus = "";
-
-    public bool IsRoundSequencePlaying => roundSequenceRoutine != null;
-
-    // Used by MinigameManager so gameplay waits until the UI sequence finishes.
     public float RoundSequenceDuration =>
         fadeDuration +
-        statusDisplayDuration +
+        statusDuration +
         fadeDuration +
-        (countdownStepDuration * 3f) +
-        goDisplayDuration +
         fadeDuration +
-        instructionDisplayDuration +
+        instructionDuration +
         fadeDuration;
 
     private void Awake()
     {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         Instance = this;
-        HideFloatingText();
-        ClearStatusUI();
-        SetAllTextAlpha(1f);
+        ClearAllImmediately();
     }
 
-    public void ShowMessage(string message)
+    public void ShowWelcomeMessage()
     {
-        ShowMessage(message, defaultMessageDuration);
-    }
-
-    public void ShowMessage(string message, float duration)
-    {
-        StopCurrentMessage();
-
-        currentMessageRoutine = StartCoroutine(ShowMessageRoutine(message, duration));
-    }
-
-    private IEnumerator ShowMessageRoutine(string message, float duration)
-    {
-        ShowMessageNoTimer(message);
-
-        yield return new WaitForSeconds(duration);
-
-        HideFloatingText();
-        currentMessageRoutine = null;
-    }
-
-    public void ShowMessageNoTimer(string message)
-    {
-        StopCurrentMessage();
+        CancelAllUI();
 
         if (floatingTextObject != null)
         {
             floatingTextObject.SetActive(true);
         }
 
-        if (floatingText != null)
-        {
-            floatingText.text = message;
-            SetTextAlpha(floatingText, 1f);
-        }
+        SetFloatingText(welcomeMessage, 1f);
     }
 
-    public void HideFloatingText()
+    public void HideWelcomeMessage()
     {
+        if (floatingText != null && floatingText.text == welcomeMessage)
+        {
+            floatingText.text = "";
+        }
+
         if (floatingTextObject != null)
         {
             floatingTextObject.SetActive(false);
         }
     }
 
+    public void StartRoundSequence(
+        string minigameName,
+        string playersMessage,
+        string instruction)
+    {
+        CancelAllUI();
+
+        sequenceVersion++;
+        int myVersion = sequenceVersion;
+
+        activeSequence = StartCoroutine(
+            RoundSequenceRoutine(
+                myVersion,
+                minigameName,
+                playersMessage,
+                instruction
+            )
+        );
+    }
+
+    private IEnumerator RoundSequenceRoutine(
+        int myVersion,
+        string minigameName,
+        string playersMessage,
+        string instruction)
+    {
+        ClearAllImmediately();
+
+        // 1. Show the chosen minigame and starting player count.
+        if (minigameStatusText != null)
+        {
+            minigameStatusText.text = "CURRENT MINIGAME: " + minigameName;
+        }
+
+        if (playersRemainingText != null)
+        {
+            playersRemainingText.text = playersMessage;
+        }
+
+        yield return FadeStatus(0f, 1f, myVersion);
+        if (myVersion != sequenceVersion) yield break;
+
+        yield return new WaitForSeconds(statusDuration);
+        if (myVersion != sequenceVersion) yield break;
+
+        yield return FadeStatus(1f, 0f, myVersion);
+        if (myVersion != sequenceVersion) yield break;
+
+        ClearStatusImmediately();
+
+        // 2. Show the instruction.
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(true);
+        }
+
+        SetFloatingText(instruction, 0f);
+
+        yield return FadeText(floatingText, 0f, 1f, myVersion);
+        if (myVersion != sequenceVersion) yield break;
+
+        yield return new WaitForSeconds(instructionDuration);
+        if (myVersion != sequenceVersion) yield break;
+
+        yield return FadeText(floatingText, 1f, 0f, myVersion);
+        if (myVersion != sequenceVersion) yield break;
+
+        ClearAllImmediately();
+        activeSequence = null;
+    }
+
+    public void ShowMessage(string message)
+    {
+        ShowMessage(message, 2f);
+    }
+
+    public void ShowMessage(string message, float duration)
+    {
+        if (temporaryMessage != null)
+        {
+            StopCoroutine(temporaryMessage);
+        }
+
+        temporaryMessage = StartCoroutine(
+            TemporaryMessageRoutine(message, duration)
+        );
+    }
+
+    private IEnumerator TemporaryMessageRoutine(string message, float duration)
+    {
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(true);
+        }
+
+        SetFloatingText(message, 1f);
+
+        yield return new WaitForSeconds(duration);
+
+        if (floatingText != null)
+        {
+            floatingText.text = "";
+        }
+
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(false);
+        }
+
+        temporaryMessage = null;
+    }
+
+    public void ShowMessageNoTimer(string message)
+    {
+        if (temporaryMessage != null)
+        {
+            StopCoroutine(temporaryMessage);
+            temporaryMessage = null;
+        }
+
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(true);
+        }
+
+        SetFloatingText(message, 1f);
+    }
+
+    public void HideFloatingText()
+    {
+        if (floatingText != null)
+        {
+            floatingText.text = "";
+        }
+
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(false);
+        }
+    }
+
+    // Kept for compatibility with existing MinigameManager calls.
+    // These do nothing while the controlled round sequence is playing.
     public void SetMinigameStatus(string message)
     {
-        // The round sequence owns these texts while it is playing.
-        if (IsRoundSequencePlaying || message == lastMinigameStatus)
+        if (activeSequence != null || minigameStatusText == null)
         {
             return;
         }
 
-        lastMinigameStatus = message;
-
-        if (minigameStatusRoutine != null)
-        {
-            StopCoroutine(minigameStatusRoutine);
-        }
-
-        minigameStatusRoutine = StartCoroutine(MinigameStatusRoutine(message));
-    }
-
-    private IEnumerator MinigameStatusRoutine(string message)
-    {
-        if (minigameStatusText != null)
-        {
-            minigameStatusText.text = message;
-            SetTextAlpha(minigameStatusText, 1f);
-        }
-
-        yield return new WaitForSeconds(statusDuration);
-
-        if (minigameStatusText != null)
-        {
-            minigameStatusText.text = "";
-        }
-
-        minigameStatusRoutine = null;
+        minigameStatusText.text = message;
+        SetTextAlpha(minigameStatusText, 1f);
     }
 
     public void SetPlayersEliminatedStatus(string message)
     {
-        // The round sequence owns these texts while it is playing.
-        if (IsRoundSequencePlaying || message == lastPlayersStatus)
+        if (activeSequence != null || playersRemainingText == null)
         {
             return;
         }
 
-        lastPlayersStatus = message;
-
-        if (playersStatusRoutine != null)
-        {
-            StopCoroutine(playersStatusRoutine);
-        }
-
-        playersStatusRoutine = StartCoroutine(PlayersStatusRoutine(message));
-    }
-
-    private IEnumerator PlayersStatusRoutine(string message)
-    {
-        if (playersEliminatedStatusText != null)
-        {
-            playersEliminatedStatusText.text = message;
-            SetTextAlpha(playersEliminatedStatusText, 1f);
-        }
-
-        yield return new WaitForSeconds(statusDuration);
-
-        if (playersEliminatedStatusText != null)
-        {
-            playersEliminatedStatusText.text = "";
-        }
-
-        playersStatusRoutine = null;
+        playersRemainingText.text = message;
+        SetTextAlpha(playersRemainingText, 1f);
     }
 
     public void ShowStatus(string minigameMessage, string playersMessage)
@@ -180,184 +246,91 @@ public class UIManager : MonoBehaviour
 
     public void ClearStatusUI()
     {
-        if (minigameStatusRoutine != null)
-        {
-            StopCoroutine(minigameStatusRoutine);
-            minigameStatusRoutine = null;
-        }
-
-        if (playersStatusRoutine != null)
-        {
-            StopCoroutine(playersStatusRoutine);
-            playersStatusRoutine = null;
-        }
-
-        if (minigameStatusText != null)
-        {
-            minigameStatusText.text = "";
-        }
-
-        if (playersEliminatedStatusText != null)
-        {
-            playersEliminatedStatusText.text = "";
-        }
-
-        lastMinigameStatus = "";
-        lastPlayersStatus = "";
+        ClearStatusImmediately();
     }
 
-    public void CountdownThenGo()
+    public void CancelAllUI()
     {
-        StopCurrentMessage();
-        currentMessageRoutine = StartCoroutine(CountdownRoutine());
+        sequenceVersion++;
+
+        if (activeSequence != null)
+        {
+            StopCoroutine(activeSequence);
+            activeSequence = null;
+        }
+
+        if (temporaryMessage != null)
+        {
+            StopCoroutine(temporaryMessage);
+            temporaryMessage = null;
+        }
+
+        ClearAllImmediately();
     }
 
-    private IEnumerator CountdownRoutine()
-    {
-        ShowMessageNoTimer("3");
-        yield return new WaitForSeconds(1f);
-
-        ShowMessageNoTimer("2");
-        yield return new WaitForSeconds(1f);
-
-        ShowMessageNoTimer("1");
-        yield return new WaitForSeconds(1f);
-
-        ShowMessageNoTimer("GO!");
-        yield return new WaitForSeconds(1f);
-
-        HideFloatingText();
-        currentMessageRoutine = null;
-    }
-
-    public void StartRoundSequence(
-        string minigame,
-        string playersRemaining,
-        string instruction)
-    {
-        StopAllUIRoutines();
-        roundSequenceRoutine = StartCoroutine(
-            RoundSequenceRoutine(minigame, playersRemaining, instruction)
-        );
-    }
-
-    private IEnumerator RoundSequenceRoutine(
-        string minigame,
-        string playersRemaining,
-        string instruction)
-    {
-        ClearTextImmediately();
-
-        // 1. Minigame and players remaining.
-        if (minigameStatusText != null)
-        {
-            minigameStatusText.text = "CURRENT MINIGAME\n" + minigame;
-        }
-
-        if (playersEliminatedStatusText != null)
-        {
-            playersEliminatedStatusText.text = playersRemaining;
-        }
-
-        yield return FadeStatusText(0f, 1f);
-        yield return new WaitForSeconds(statusDisplayDuration);
-        yield return FadeStatusText(1f, 0f);
-
-        if (minigameStatusText != null)
-        {
-            minigameStatusText.text = "";
-        }
-
-        if (playersEliminatedStatusText != null)
-        {
-            playersEliminatedStatusText.text = "";
-        }
-
-        // 2. Countdown.
-        if (floatingTextObject != null)
-        {
-            floatingTextObject.SetActive(true);
-        }
-
-        SetTextAlpha(floatingText, 1f);
-
-        SetFloatingText("3");
-        yield return new WaitForSeconds(countdownStepDuration);
-
-        SetFloatingText("2");
-        yield return new WaitForSeconds(countdownStepDuration);
-
-        SetFloatingText("1");
-        yield return new WaitForSeconds(countdownStepDuration);
-
-        SetFloatingText("GO!");
-        yield return new WaitForSeconds(goDisplayDuration);
-
-        yield return FadeSingleText(floatingText, 1f, 0f);
-
-        // 3. Instruction.
-        SetFloatingText(instruction);
-        SetTextAlpha(floatingText, 0f);
-        yield return FadeSingleText(floatingText, 0f, 1f);
-        yield return new WaitForSeconds(instructionDisplayDuration);
-        yield return FadeSingleText(floatingText, 1f, 0f);
-
-        HideFloatingText();
-        ClearTextImmediately();
-
-        // Prevent the same status from instantly appearing again after the sequence.
-        lastMinigameStatus = "CURRENT MINIGAME: " + minigame;
-        lastPlayersStatus = playersRemaining;
-
-        roundSequenceRoutine = null;
-    }
-
-    private void SetFloatingText(string message)
-    {
-        if (floatingText != null)
-        {
-            floatingText.text = message;
-        }
-    }
-
-    private IEnumerator FadeStatusText(float from, float to)
+    private IEnumerator FadeStatus(float from, float to, int myVersion)
     {
         float elapsed = 0f;
 
         SetTextAlpha(minigameStatusText, from);
-        SetTextAlpha(playersEliminatedStatusText, from);
+        SetTextAlpha(playersRemainingText, from);
 
         while (elapsed < fadeDuration)
         {
-            float progress = fadeDuration <= 0f ? 1f : elapsed / fadeDuration;
-            float alpha = Mathf.Lerp(from, to, progress);
+            if (myVersion != sequenceVersion)
+            {
+                yield break;
+            }
+
+            float t = fadeDuration <= 0f ? 1f : elapsed / fadeDuration;
+            float alpha = Mathf.Lerp(from, to, t);
 
             SetTextAlpha(minigameStatusText, alpha);
-            SetTextAlpha(playersEliminatedStatusText, alpha);
+            SetTextAlpha(playersRemainingText, alpha);
 
             elapsed += Time.deltaTime;
             yield return null;
         }
 
         SetTextAlpha(minigameStatusText, to);
-        SetTextAlpha(playersEliminatedStatusText, to);
+        SetTextAlpha(playersRemainingText, to);
     }
 
-    private IEnumerator FadeSingleText(TextMeshPro text, float from, float to)
+    private IEnumerator FadeText(
+        TextMeshPro text,
+        float from,
+        float to,
+        int myVersion)
     {
         float elapsed = 0f;
         SetTextAlpha(text, from);
 
         while (elapsed < fadeDuration)
         {
-            float progress = fadeDuration <= 0f ? 1f : elapsed / fadeDuration;
-            SetTextAlpha(text, Mathf.Lerp(from, to, progress));
+            if (myVersion != sequenceVersion)
+            {
+                yield break;
+            }
+
+            float t = fadeDuration <= 0f ? 1f : elapsed / fadeDuration;
+            SetTextAlpha(text, Mathf.Lerp(from, to, t));
 
             elapsed += Time.deltaTime;
             yield return null;
         }
 
         SetTextAlpha(text, to);
+    }
+
+    private void SetFloatingText(string message, float alpha)
+    {
+        if (floatingText == null)
+        {
+            return;
+        }
+
+        floatingText.text = message;
+        SetTextAlpha(floatingText, alpha);
     }
 
     private void SetTextAlpha(TextMeshPro text, float alpha)
@@ -372,46 +345,7 @@ public class UIManager : MonoBehaviour
         text.color = color;
     }
 
-    private void SetAllTextAlpha(float alpha)
-    {
-        SetTextAlpha(floatingText, alpha);
-        SetTextAlpha(minigameStatusText, alpha);
-        SetTextAlpha(playersEliminatedStatusText, alpha);
-    }
-
-    private void StopCurrentMessage()
-    {
-        if (currentMessageRoutine != null)
-        {
-            StopCoroutine(currentMessageRoutine);
-            currentMessageRoutine = null;
-        }
-    }
-
-    private void StopAllUIRoutines()
-    {
-        StopCurrentMessage();
-
-        if (minigameStatusRoutine != null)
-        {
-            StopCoroutine(minigameStatusRoutine);
-            minigameStatusRoutine = null;
-        }
-
-        if (playersStatusRoutine != null)
-        {
-            StopCoroutine(playersStatusRoutine);
-            playersStatusRoutine = null;
-        }
-
-        if (roundSequenceRoutine != null)
-        {
-            StopCoroutine(roundSequenceRoutine);
-            roundSequenceRoutine = null;
-        }
-    }
-
-    private void ClearTextImmediately()
+    private void ClearStatusImmediately()
     {
         if (minigameStatusText != null)
         {
@@ -419,16 +353,26 @@ public class UIManager : MonoBehaviour
             SetTextAlpha(minigameStatusText, 1f);
         }
 
-        if (playersEliminatedStatusText != null)
+        if (playersRemainingText != null)
         {
-            playersEliminatedStatusText.text = "";
-            SetTextAlpha(playersEliminatedStatusText, 1f);
+            playersRemainingText.text = "";
+            SetTextAlpha(playersRemainingText, 1f);
         }
+    }
+
+    private void ClearAllImmediately()
+    {
+        ClearStatusImmediately();
 
         if (floatingText != null)
         {
             floatingText.text = "";
             SetTextAlpha(floatingText, 1f);
+        }
+
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(false);
         }
     }
 }
