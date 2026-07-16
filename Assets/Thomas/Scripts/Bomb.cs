@@ -25,7 +25,7 @@ public class Bomb : NetworkBehaviour
     void Start()
     {
         // Find the Pole child object
-        poleObject = transform.Find("Pole")?.gameObject;
+        poleObject = transform.Find("Bad")?.gameObject;
         
         if (poleObject == null)
         {

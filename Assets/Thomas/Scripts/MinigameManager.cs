@@ -642,7 +642,23 @@ public class MinigameManager : NetworkBehaviour
 
         int playersRemaining = allPlayers.Count - playersAboveThreshold;
 
-        // Eliminated players wait. The minigame continues until one player remains.
+        // Check if players were eliminated in Sword or HotPotato minigames
+        if ((currentMinigame.Value == 2 || currentMinigame.Value == 4) && 
+            playersAboveThreshold > lastEliminatedCount && 
+            playersAboveThreshold > 0)
+        {
+            lastEliminatedCount = playersAboveThreshold;
+        
+            // If there are still multiple players remaining, transition to a new minigame
+            if (playersRemaining > 1 && !isProcessingWin && !isRoundTransitionRunning)
+            {
+                int newMinigame = RollMinigame();
+                StartCoroutine(TransitionToMinigame(newMinigame));
+                return;
+            }
+        }
+
+        // Update eliminated count for other minigames
         if (playersAboveThreshold > lastEliminatedCount)
         {
             lastEliminatedCount = playersAboveThreshold;
@@ -673,7 +689,7 @@ public class MinigameManager : NetworkBehaviour
         ShowRoundResultRpc();
 
         // Give the winner and eliminated players time to read their result.
-        yield return new WaitForSeconds(3f);
+        yield return new WaitForSeconds(5f);
 
         CleanupGuns();
         CleanupBombs();
@@ -693,7 +709,16 @@ public class MinigameManager : NetworkBehaviour
     {
         if (!IsOwner) return;
 
+        // Store the lift coroutine reference before stopping others
+        Coroutine savedLiftCoroutine = liftCoroutine;
+
         StopAllCoroutines();
+
+        // Restart the lift coroutine if it was running
+        if (savedLiftCoroutine != null)
+        {
+            liftCoroutine = StartCoroutine(LiftRoutine());
+        }
 
         isProcessingWin = false;
         isRoundTransitionRunning = false;
@@ -977,7 +1002,7 @@ public class MinigameManager : NetworkBehaviour
             liftYStart,
             liftObject.transform.position.z
         );
-        
+    
         Vector3 endPosition = new Vector3(
             liftObject.transform.position.x,
             liftYEnd,
@@ -1014,6 +1039,7 @@ public class MinigameManager : NetworkBehaviour
         }
 
         liftObject.transform.position = startPosition;
+        liftCoroutine = null; // Mark as complete
     }
 
     public void SpawnSingleGun()
@@ -1023,5 +1049,6 @@ public class MinigameManager : NetworkBehaviour
         ShowInstructionRpc("GRAB THE GUN. ONE SHOT ONLY!", 3f);
 
         currentMinigame.Value = 3;
+        
     }
 }

@@ -264,21 +264,27 @@ namespace XRMultiplayer
 
             m_ConnectionState.Value = ConnectionState.Authenticated;
             
-            StartCoroutine(AutoQuickJoinAfterDelay(10f));
+            //StartCoroutine(AutoQuickJoinAfterDelay(10f));
         }
         IEnumerator AutoQuickJoinAfterDelay(float delay)
         {
             yield return new WaitForSeconds(delay);
             //QuickJoinLobby();
         }
-
-        /// <summary>
+        
+                /// <summary>
         /// See <see cref="MonoBehaviour"/>.
         /// </summary>
         protected virtual void Start()
         {
             NetworkManager.Singleton.OnClientStopped += LocalClientStopped;
             NetworkManager.Singleton.OnSessionOwnerPromoted += SessionOwnerPromoted;
+            
+            // Subscribe to client disconnect events to detect when session owner leaves
+            if (CurrentSessionType == SessionType.DistributedAuthority)
+            {
+                NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
+            }
         }
 
         void SessionOwnerPromoted(ulong sessionOwnerId)
@@ -288,6 +294,34 @@ namespace XRMultiplayer
             {
                 PlayerHudNotification.Instance.ShowText($"<b>Status:</b> {player.playerName} now the Host.");
             }
+        }
+        
+        /// <summary>
+        /// Called when any client disconnects. Checks if the session owner left.
+        /// </summary>
+        void OnClientDisconnected(ulong clientId)
+        {
+            if (CurrentSessionType == SessionType.DistributedAuthority)
+            {
+                // Check if the disconnected client was the session owner
+                if (clientId == NetworkManager.Singleton.CurrentSessionOwner)
+                {
+                    Utils.Log($"{k_DebugPrepend}Session owner disconnected. Shutting down all clients.", 0);
+                    PlayerHudNotification.Instance.ShowText($"<b>Status:</b> Host disconnected. Ending session.");
+                    
+                    // Disconnect everyone
+                    StartCoroutine(DisconnectAllAfterDelay());
+                }
+            }
+        }
+        
+        /// <summary>
+        /// Disconnects all players after a brief delay to show the notification.
+        /// </summary>
+        IEnumerator DisconnectAllAfterDelay()
+        {
+            yield return new WaitForSeconds(1f);
+            Disconnect();
         }
 
         /// <summary>
@@ -315,10 +349,12 @@ namespace XRMultiplayer
             if (NetworkManager.Singleton != null)
             {
                 NetworkManager.Singleton.OnClientStopped -= LocalClientStopped;
+                NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
             }
 
             await m_SessionManager.LeaveSession();
         }
+
 
         public bool IsAuthenticated()
         {

@@ -9,22 +9,30 @@ public class playersweeperthing : MonoBehaviour
     {
         // Check if the collided object is called "Pole"
         //if (other.gameObject.name != "Pole") return;
-        if (!other.gameObject.name.Contains("Pole")) return;
-        
-        // Find the teleportation provider
-        TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
-        
-        if (teleportationProvider != null && teleportDestination != null)
+        if (other.gameObject.name.Contains("Pole"))
         {
-            TeleportRequest teleportRequest = new TeleportRequest
-            {
-                destinationPosition = teleportDestination.position,
-                destinationRotation = teleportDestination.rotation
-            };
+            // Find the teleportation provider
+            TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
             
-            teleportationProvider.QueueTeleportRequest(teleportRequest);
+            if (teleportationProvider != null && teleportDestination != null)
+            {
+                TeleportRequest teleportRequest = new TeleportRequest
+                {
+                    destinationPosition = teleportDestination.position,
+                    destinationRotation = teleportDestination.rotation
+                };
+                
+                teleportationProvider.QueueTeleportRequest(teleportRequest);
+            }
+        }
+        
+        // Check if the collided object name contains "Bad"
+        if (other.gameObject.name.Contains("Bad"))
+        {
+            SendPlayerToStart();
         }
     }
+    
     public void SendPlayerToStart()
     {
         TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
