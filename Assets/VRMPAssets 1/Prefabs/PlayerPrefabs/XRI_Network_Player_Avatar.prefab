@@ -699,6 +699,10 @@ MonoBehaviour:
   shrinkSpeed: 0.05
   minScale: 0.1
   destroyWhenMinimum: 1
+  iceCrackSounds: []
+  crackCooldown: 0.7
+  crackVolume: 0.8
+  audioSource: {fileID: 0}
 --- !u!114 &9155118293840301271
 MonoBehaviour:
   m_ObjectHideFlags: 0

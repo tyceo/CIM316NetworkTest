@@ -60,10 +60,21 @@ public class MinigameManager : NetworkBehaviour
 
     int RollMinigame()
     {
-        List<int> options = new List<int> { 1, 2, 3, 4 };
-        options.Remove(lastMinigame);
+    // Hot Potato (4) appears more often in the pool
+        List<int> options = new List<int>
+        {
+            1, // Melt
+            2, // Sword
+            3, // One Shot
+            4, // Hot Potato
+            4  // Extra Hot Potato chance
+        };
+
+        // Still don't allow the same minigame twice in a row
+        options.RemoveAll(x => x == lastMinigame);
 
         int chosen = options[Random.Range(0, options.Count)];
+
         lastMinigame = chosen;
 
         return chosen;
