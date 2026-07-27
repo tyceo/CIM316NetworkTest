@@ -7,7 +7,7 @@ public class GameStartMenu : MonoBehaviour
     [Header("UI Pages")]
     public GameObject mainMenu;
     public GameObject howToPlay;
-    public GameObject about;
+    public GameObject cosmetics;
 
     [Header("Scene Build Index")]
     public int gameSceneIndex = 1;
@@ -16,7 +16,7 @@ public class GameStartMenu : MonoBehaviour
     [Header("Main Menu Buttons")]
     public Button startButton;
     public Button howToPlayButton;
-    public Button aboutButton;
+    public Button cosmeticsButton;
     public Button quitButton;
 
     public List<Button> returnButtons;
@@ -27,7 +27,7 @@ public class GameStartMenu : MonoBehaviour
 
         startButton.onClick.AddListener(StartGame);
         howToPlayButton.onClick.AddListener(StartHowToPlay);
-        aboutButton.onClick.AddListener(EnableAbout);
+        cosmeticsButton.onClick.AddListener(EnableCosmetics);
         quitButton.onClick.AddListener(QuitGame);
 
         foreach (var item in returnButtons)
@@ -62,9 +62,9 @@ public class GameStartMenu : MonoBehaviour
             howToPlay.SetActive(false);
         }
 
-        if (about != null)
+        if (cosmetics != null)
         {
-            about.SetActive(false);
+            cosmetics.SetActive(false);
         }
     }
 
@@ -77,9 +77,9 @@ public class GameStartMenu : MonoBehaviour
             howToPlay.SetActive(false);
         }
 
-        if (about != null)
+        if (cosmetics != null)
         {
-            about.SetActive(false);
+            cosmetics.SetActive(false);
         }
     }
 
@@ -92,13 +92,13 @@ public class GameStartMenu : MonoBehaviour
             howToPlay.SetActive(true);
         }
 
-        if (about != null)
+        if (cosmetics != null)
         {
-            about.SetActive(false);
+            cosmetics.SetActive(false);
         }
     }
 
-    public void EnableAbout()
+    public void EnableCosmetics()
     {
         mainMenu.SetActive(false);
 
@@ -107,9 +107,9 @@ public class GameStartMenu : MonoBehaviour
             howToPlay.SetActive(false);
         }
 
-        if (about != null)
+        if (cosmetics != null)
         {
-            about.SetActive(true);
+            cosmetics.SetActive(true);
         }
     }
 }
