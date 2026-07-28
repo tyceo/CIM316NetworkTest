@@ -3,153 +3,95 @@ using UnityEngine;
 
 public class CosmeticsManager : MonoBehaviour
 {
-    public static CosmeticsManager Instance;
-
-    [Header("Character Preview")]
-    [SerializeField] private Renderer characterRenderer;
+    [Header("Characters")]
+    [SerializeField] private GameObject[] characters;
 
     [Header("UI")]
-    [SerializeField] private TextMeshPro colourText;
+    [SerializeField] private TextMeshPro characterNameText;
 
-    [Header("Colours")]
-    [SerializeField] private Color[] availableColours =
+    [Header("Character Names")]
+    [SerializeField] private string[] characterNames =
     {
-        Color.red,
-        Color.blue,
-        Color.green,
-        Color.yellow,
-        Color.magenta
+        "Gelly",
+        "Polly",
+        "Cally",
+        "Lally",
+        "Bally"
     };
 
-    [SerializeField] private string[] colourNames =
-    {
-        "RED",
-        "BLUE",
-        "GREEN",
-        "YELLOW",
-        "PURPLE"
-    };
+    private int selectedCharacter = 0;
 
-    private int selectedColourIndex = 0;
-
-    private const string ColourPrefKey = "SelectedCosmeticColour";
-
-    private void Awake()
-    {
-        Instance = this;
-    }
+    private const string CharacterSaveKey = "SelectedCharacter";
 
     private void Start()
     {
-        LoadCosmetics();
-        ApplyColour();
-    }
+        selectedCharacter = PlayerPrefs.GetInt(CharacterSaveKey, 0);
 
-    public void NextColour()
-    {
-        if (availableColours == null || availableColours.Length == 0)
-        {
-            return;
-        }
-
-        selectedColourIndex++;
-
-        if (selectedColourIndex >= availableColours.Length)
-        {
-            selectedColourIndex = 0;
-        }
-
-        ApplyColour();
-        SaveCosmetics();
-    }
-
-    public void PreviousColour()
-    {
-        if (availableColours == null || availableColours.Length == 0)
-        {
-            return;
-        }
-
-        selectedColourIndex--;
-
-        if (selectedColourIndex < 0)
-        {
-            selectedColourIndex = availableColours.Length - 1;
-        }
-
-        ApplyColour();
-        SaveCosmetics();
-    }
-
-    private void ApplyColour()
-    {
-        if (availableColours == null || availableColours.Length == 0)
-        {
-            return;
-        }
-
-        selectedColourIndex = Mathf.Clamp(
-            selectedColourIndex,
+        selectedCharacter = Mathf.Clamp(
+            selectedCharacter,
             0,
-            availableColours.Length - 1
+            characters.Length - 1
         );
 
-        if (characterRenderer != null)
-        {
-            characterRenderer.material.color =
-                availableColours[selectedColourIndex];
-        }
-
-        UpdateColourText();
+        UpdateCharacter();
     }
 
-    private void UpdateColourText()
+    public void NextCharacter()
     {
-        if (colourText == null)
+        selectedCharacter++;
+
+        if (selectedCharacter >= characters.Length)
         {
-            return;
+            selectedCharacter = 0;
         }
 
-        if (colourNames != null &&
-            selectedColourIndex < colourNames.Length)
+        UpdateCharacter();
+        SaveCharacter();
+    }
+
+    public void PreviousCharacter()
+    {
+        selectedCharacter--;
+
+        if (selectedCharacter < 0)
         {
-            colourText.text = colourNames[selectedColourIndex];
+            selectedCharacter = characters.Length - 1;
         }
-        else
+
+        UpdateCharacter();
+        SaveCharacter();
+    }
+
+    private void UpdateCharacter()
+    {
+        for (int i = 0; i < characters.Length; i++)
         {
-            colourText.text = "COLOUR " + (selectedColourIndex + 1);
+            if (characters[i] != null)
+            {
+                characters[i].SetActive(i == selectedCharacter);
+            }
+        }
+
+        if (characterNameText != null &&
+            selectedCharacter < characterNames.Length)
+        {
+            characterNameText.text =
+                characterNames[selectedCharacter];
         }
     }
 
-    private void SaveCosmetics()
+    private void SaveCharacter()
     {
         PlayerPrefs.SetInt(
-            ColourPrefKey,
-            selectedColourIndex
+            CharacterSaveKey,
+            selectedCharacter
         );
 
         PlayerPrefs.Save();
     }
 
-    private void LoadCosmetics()
+    public int GetSelectedCharacter()
     {
-        selectedColourIndex =
-            PlayerPrefs.GetInt(ColourPrefKey, 0);
-    }
-
-    public int GetSelectedColourIndex()
-    {
-        return selectedColourIndex;
-    }
-
-    public Color GetSelectedColour()
-    {
-        if (availableColours == null ||
-            availableColours.Length == 0)
-        {
-            return Color.white;
-        }
-
-        return availableColours[selectedColourIndex];
+        return selectedCharacter;
     }
 }

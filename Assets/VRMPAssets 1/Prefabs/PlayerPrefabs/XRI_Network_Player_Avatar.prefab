@@ -1760,6 +1760,7 @@ GameObject:
   - component: {fileID: 4588994832583027022}
   - component: {fileID: 8435302620866516779}
   - component: {fileID: 2722608077457501448}
+  - component: {fileID: 4959130723129179163}
   m_Layer: 0
   m_Name: XRI_Network_Player_Avatar
   m_TagString: Untagged
@@ -2006,6 +2007,24 @@ MonoBehaviour:
   m_QuestColor: {r: 0.101960786, g: 0.101960786, b: 0.49803922, a: 1}
   m_AndroidColor: {r: 0.101960786, g: 0.34117648, b: 0.101960786, a: 1}
   m_OtherColor: {r: 0.53333336, g: 0.101960786, b: 0.101960786, a: 1}
+--- !u!114 &4959130723129179163
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5358844088564582620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83ab3b3a9ea4145d4a75319ed971724f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::NetworkCosmetics
+  ShowTopMostFoldoutHeaderGroup: 1
+  characters:
+  - {fileID: 919132149155446097, guid: 7f5c675b2fb3a784990499458cb6ca67, type: 3}
+  - {fileID: 919132149155446097, guid: 33287200591bd114aa3f465ba0b85416, type: 3}
+  - {fileID: 919132149155446097, guid: d54284ab931a0174fa11c3e6f3ecf902, type: 3}
+  - {fileID: 919132149155446097, guid: a61aa93647a97c2409568025a804bbf5, type: 3}
 --- !u!1 &5908336471056132768
 GameObject:
   m_ObjectHideFlags: 0
