@@ -1,16 +1,26 @@
+using System.Collections;
 using Unity.Netcode;
 using UnityEngine;
 
 public class NetworkCosmetics : NetworkBehaviour
 {
-    [Header("Character Models")]
+    [Header("Characters")]
+    [Tooltip("Must match the order in CosmeticsManager.")]
     [SerializeField] private GameObject[] characters;
-    [SerializeField] private GameObject originalAvatarVisuals;
+
+    [Header("Separate Default Head")]
+    [Tooltip("Assign Head > icecube here.")]
+    [SerializeField] private GameObject originalHeadVisuals;
+
+    [Header("Default Character")]
+    [Tooltip("MC3_Red is index 2.")]
+    [SerializeField] private int defaultCharacterIndex = 2;
+
     private const string CharacterSaveKey = "SelectedCharacter";
 
-    private NetworkVariable<int> selectedCharacter =
+    private readonly NetworkVariable<int> selectedCharacter =
         new NetworkVariable<int>(
-            0,
+            2,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Owner
         );
@@ -20,41 +30,44 @@ public class NetworkCosmetics : NetworkBehaviour
         base.OnNetworkSpawn();
 
         selectedCharacter.OnValueChanged += OnCharacterChanged;
+        StartCoroutine(ApplyAfterSpawn());
+    }
 
-        // Apply whatever value already exists.
-        ApplyCharacter(selectedCharacter.Value);
+    private IEnumerator ApplyAfterSpawn()
+    {
+        yield return null;
+        yield return null;
 
-        // Only this player's headset sends its own saved choice.
+        if (characters == null || characters.Length == 0)
+        {
+            yield break;
+        }
+
         if (IsOwner)
         {
-            int savedCharacter =
-                PlayerPrefs.GetInt(CharacterSaveKey, 0);
+            int savedIndex = PlayerPrefs.GetInt(
+                CharacterSaveKey,
+                defaultCharacterIndex
+            );
 
-            savedCharacter = Mathf.Clamp(
-                savedCharacter,
+            savedIndex = Mathf.Clamp(
+                savedIndex,
                 0,
                 characters.Length - 1
             );
 
-            selectedCharacter.Value = savedCharacter;
-
-            ApplyCharacter(savedCharacter);
+            selectedCharacter.Value = savedIndex;
+            ApplyCharacter(savedIndex);
+        }
+        else
+        {
+            ApplyCharacter(selectedCharacter.Value);
         }
     }
 
-    public override void OnNetworkDespawn()
+    private void OnCharacterChanged(int oldIndex, int newIndex)
     {
-        selectedCharacter.OnValueChanged -= OnCharacterChanged;
-
-        base.OnNetworkDespawn();
-    }
-
-    private void OnCharacterChanged(
-        int previousValue,
-        int newValue
-    )
-    {
-        ApplyCharacter(newValue);
+        ApplyCharacter(newIndex);
     }
 
     private void ApplyCharacter(int characterIndex)
@@ -70,19 +83,26 @@ public class NetworkCosmetics : NetworkBehaviour
             characters.Length - 1
         );
 
-        if (originalAvatarVisuals != null)
-        {
-            originalAvatarVisuals.SetActive(false);
-        }
-
         for (int i = 0; i < characters.Length; i++)
         {
             if (characters[i] != null)
             {
-                characters[i].SetActive(
-                    i == characterIndex
-                );
+                characters[i].SetActive(i == characterIndex);
             }
         }
+
+        // The separate icecube head is only used by MC3_Red.
+        if (originalHeadVisuals != null)
+        {
+            originalHeadVisuals.SetActive(
+                characterIndex == defaultCharacterIndex
+            );
+        }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        selectedCharacter.OnValueChanged -= OnCharacterChanged;
+        base.OnNetworkDespawn();
     }
 }
