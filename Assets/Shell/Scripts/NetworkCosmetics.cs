@@ -5,7 +5,7 @@ public class NetworkCosmetics : NetworkBehaviour
 {
     [Header("Character Models")]
     [SerializeField] private GameObject[] characters;
-
+    [SerializeField] private GameObject originalAvatarVisuals;
     private const string CharacterSaveKey = "SelectedCharacter";
 
     private NetworkVariable<int> selectedCharacter =
@@ -61,10 +61,6 @@ public class NetworkCosmetics : NetworkBehaviour
     {
         if (characters == null || characters.Length == 0)
         {
-            Debug.LogWarning(
-                "NetworkCosmetics: No characters assigned."
-            );
-
             return;
         }
 
@@ -73,6 +69,11 @@ public class NetworkCosmetics : NetworkBehaviour
             0,
             characters.Length - 1
         );
+
+        if (originalAvatarVisuals != null)
+        {
+            originalAvatarVisuals.SetActive(false);
+        }
 
         for (int i = 0; i < characters.Length; i++)
         {

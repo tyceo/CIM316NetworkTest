@@ -8,6 +8,7 @@ public class CosmeticsManager : MonoBehaviour
 
     [Header("UI")]
     [SerializeField] private TextMeshPro characterNameText;
+    [SerializeField] private TextMeshPro savedMessageText;
 
     [Header("Character Names")]
     [SerializeField] private string[] characterNames =
@@ -19,13 +20,30 @@ public class CosmeticsManager : MonoBehaviour
         "Bally"
     };
 
+    [Header("Saved Message")]
+    [SerializeField] private float savedMessageDuration = 1.5f;
+    
+
     private int selectedCharacter = 0;
+    private float savedMessageTimer = 0f;
 
     private const string CharacterSaveKey = "SelectedCharacter";
 
     private void Start()
     {
-        selectedCharacter = PlayerPrefs.GetInt(CharacterSaveKey, 0);
+        if (characters == null || characters.Length == 0)
+        {
+            Debug.LogWarning(
+                "CosmeticsManager: No characters have been assigned."
+            );
+
+            return;
+        }
+
+        selectedCharacter = PlayerPrefs.GetInt(
+            CharacterSaveKey,
+            0
+        );
 
         selectedCharacter = Mathf.Clamp(
             selectedCharacter,
@@ -33,11 +51,37 @@ public class CosmeticsManager : MonoBehaviour
             characters.Length - 1
         );
 
+        if (savedMessageText != null)
+        {
+            savedMessageText.gameObject.SetActive(false);
+        }
+
         UpdateCharacter();
+    }
+
+    private void Update()
+    {
+        if (savedMessageTimer <= 0f)
+        {
+            return;
+        }
+
+        savedMessageTimer -= Time.deltaTime;
+
+        if (savedMessageTimer <= 0f &&
+            savedMessageText != null)
+        {
+            savedMessageText.gameObject.SetActive(false);
+        }
     }
 
     public void NextCharacter()
     {
+        if (characters == null || characters.Length == 0)
+        {
+            return;
+        }
+
         selectedCharacter++;
 
         if (selectedCharacter >= characters.Length)
@@ -46,11 +90,16 @@ public class CosmeticsManager : MonoBehaviour
         }
 
         UpdateCharacter();
-        SaveCharacter();
+        HideSavedMessage();
     }
 
     public void PreviousCharacter()
     {
+        if (characters == null || characters.Length == 0)
+        {
+            return;
+        }
+
         selectedCharacter--;
 
         if (selectedCharacter < 0)
@@ -59,7 +108,24 @@ public class CosmeticsManager : MonoBehaviour
         }
 
         UpdateCharacter();
-        SaveCharacter();
+        HideSavedMessage();
+    }
+
+    public void SaveCharacter()
+    {
+        PlayerPrefs.SetInt(
+            CharacterSaveKey,
+            selectedCharacter
+        );
+
+        PlayerPrefs.Save();
+
+        Debug.Log(
+            "Character saved: " +
+            selectedCharacter
+        );
+
+        ShowSavedMessage();
     }
 
     private void UpdateCharacter()
@@ -68,26 +134,50 @@ public class CosmeticsManager : MonoBehaviour
         {
             if (characters[i] != null)
             {
-                characters[i].SetActive(i == selectedCharacter);
+                characters[i].SetActive(
+                    i == selectedCharacter
+                );
             }
         }
 
-        if (characterNameText != null &&
-            selectedCharacter < characterNames.Length)
+        if (characterNameText != null)
         {
-            characterNameText.text =
-                characterNames[selectedCharacter];
+            if (characterNames != null &&
+                selectedCharacter < characterNames.Length)
+            {
+                characterNameText.text =
+                    characterNames[selectedCharacter];
+            }
+            else
+            {
+                characterNameText.text =
+                    "CHARACTER " +
+                    (selectedCharacter + 1);
+            }
         }
     }
 
-    private void SaveCharacter()
+    private void ShowSavedMessage()
     {
-        PlayerPrefs.SetInt(
-            CharacterSaveKey,
-            selectedCharacter
-        );
+        if (savedMessageText == null)
+        {
+            return;
+        }
 
-        PlayerPrefs.Save();
+        savedMessageText.text = "SAVED!";
+        savedMessageText.gameObject.SetActive(true);
+
+        savedMessageTimer = savedMessageDuration;
+    }
+
+    private void HideSavedMessage()
+    {
+        savedMessageTimer = 0f;
+
+        if (savedMessageText != null)
+        {
+            savedMessageText.gameObject.SetActive(false);
+        }
     }
 
     public int GetSelectedCharacter()
