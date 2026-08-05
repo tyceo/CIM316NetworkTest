@@ -390,7 +390,7 @@ MonoBehaviour:
   - {fileID: 7612761326946746432, guid: 67890edb0c0e862439ddc52026f8acb8, type: 3}
   tickSound: {fileID: 8300000, guid: cd56a3edc97a34f82bd01cec1fc7fef1, type: 3}
   explosionSound: {fileID: 8300000, guid: b9203135c642f4d569b19f8e9d38a0d4, type: 3}
-  tickVolume: 0.8
+  tickVolume: 0.549
   explosionVolume: 1
   audioSource: {fileID: -7655773184083163303}
 --- !u!54 &1357403564962139250

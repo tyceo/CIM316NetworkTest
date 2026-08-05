@@ -94,6 +94,11 @@ public class Bomb : NetworkBehaviour
         currentPlayerClientId.OnValueChanged -= OnPlayerChanged;
         remainingTime.OnValueChanged -= OnTimeChanged;
 
+        if (BombCountdownUI.Instance != null)
+        {
+            BombCountdownUI.Instance.HideCountdown();
+        }
+
         base.OnNetworkDespawn();
     }
 
@@ -113,6 +118,11 @@ public class Bomb : NetworkBehaviour
             remainingTime.Value = explosionTimer;
 
             lastTickSecond = Mathf.CeilToInt(explosionTimer);
+
+            if (BombCountdownUI.Instance != null)
+            {
+                BombCountdownUI.Instance.ShowCountdown(lastTickSecond);
+            }
 
             initialized = true;
 
@@ -329,6 +339,11 @@ public class Bomb : NetworkBehaviour
         // Explosion visual + sound on everyone.
         ActivateExplosionRpc();
 
+        if (BombCountdownUI.Instance != null)
+        {
+            BombCountdownUI.Instance.HideCountdown();
+        }
+
         yield return new WaitForSeconds(1f);
 
         if (IsOwner)
@@ -394,11 +409,21 @@ public class Bomb : NetworkBehaviour
         {
             lastTickSecond = newSecond;
 
+            if (BombCountdownUI.Instance != null)
+            {
+                BombCountdownUI.Instance.ShowCountdown(newSecond);
+            }
+
             PlayTick();
 
             Debug.Log(
                 $"Bomb timer: {newSecond} seconds"
             );
+        }
+
+        if (newValue <= 0f && BombCountdownUI.Instance != null)
+        {
+            BombCountdownUI.Instance.HideCountdown();
         }
     }
 

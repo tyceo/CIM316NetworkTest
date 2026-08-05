@@ -23,6 +23,15 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private float liftDuration = 3f;
     [SerializeField] private GameObject bombPrefab;
 
+    [Header("Round Audio")]
+    [SerializeField] private AudioClip victorySound;
+    [SerializeField] private AudioClip swordGuitarSound;
+    [Range(0f, 1f)]
+    [SerializeField] private float victoryVolume = 1f;
+    [Range(0f, 1f)]
+    [SerializeField] private float swordGuitarVolume = 1f;
+    [SerializeField] private AudioSource audioSource;
+
     private float liftYStart = -18f;
     private float liftYEnd = 127.7f;
     private float liftStayDuration = 5f;
@@ -112,6 +121,19 @@ public class MinigameManager : NetworkBehaviour
 
     void Start()
     {
+        if (audioSource == null)
+        {
+            audioSource = GetComponent<AudioSource>();
+        }
+
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+        }
+
+        audioSource.playOnAwake = false;
+        audioSource.spatialBlend = 0f;
+
         currentMinigame.OnValueChanged += OnMinigameChanged;
         isLoadingMinigame.OnValueChanged += (prev, next) => UpdateMinigameText();
 
@@ -864,6 +886,7 @@ public class MinigameManager : NetworkBehaviour
             localPlayer.transform.position.y <= heightThreshold)
         {
             UIManager.Instance.ShowMessage("YOU WIN!", 3f);
+            PlayVictorySound();
         }
         else
         {
@@ -906,6 +929,31 @@ public class MinigameManager : NetworkBehaviour
                 instruction
             );
         }
+
+        if (minigameName == "SWORD")
+        {
+            PlaySwordGuitarSound();
+        }
+    }
+
+    private void PlayVictorySound()
+    {
+        if (victorySound == null || audioSource == null)
+        {
+            return;
+        }
+
+        audioSource.PlayOneShot(victorySound, victoryVolume);
+    }
+
+    private void PlaySwordGuitarSound()
+    {
+        if (swordGuitarSound == null || audioSource == null)
+        {
+            return;
+        }
+
+        audioSource.PlayOneShot(swordGuitarSound, swordGuitarVolume);
     }
 
     private float GetRoundSequenceDuration()
