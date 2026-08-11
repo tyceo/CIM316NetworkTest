@@ -1,5 +1,6 @@
 using TMPro;
 using UnityEngine;
+using XRMultiplayer;
 
 public class CosmeticsManager : MonoBehaviour
 {
@@ -124,8 +125,34 @@ public class CosmeticsManager : MonoBehaviour
             "Character saved: " +
             selectedCharacter
         );
-
+        
         ShowSavedMessage();
+        
+        // Apply the hat to the local player
+        ApplyHatToLocalPlayer();
+    }
+
+    private void ApplyHatToLocalPlayer()
+    {
+        // Find the local player's HatPicker component
+        if (XRINetworkPlayer.LocalPlayer != null)
+        {
+            HatPicker hatPicker = XRINetworkPlayer.LocalPlayer.GetComponent<HatPicker>();
+            
+            if (hatPicker != null)
+            {
+                hatPicker.SetHat(selectedCharacter);
+                Debug.Log($"Applied hat {selectedCharacter} to local player");
+            }
+            else
+            {
+                Debug.LogWarning("HatPicker component not found on local player");
+            }
+        }
+        else
+        {
+            Debug.LogWarning("Local player not found. Hat will be applied when player spawns.");
+        }
     }
 
     private void UpdateCharacter()
