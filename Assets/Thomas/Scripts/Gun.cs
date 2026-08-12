@@ -70,7 +70,7 @@ public class Gun : MonoBehaviour
         nextFireTime = Time.time + fireRate;
         
         // Start coroutine to destroy this gameobject after 0.5 seconds
-        StartCoroutine(DestroyAfterDelay(6f));
+        StartCoroutine(DestroyAfterDelay(2f));
     }
     
     private IEnumerator DestroyAfterDelay(float delay)

@@ -8,11 +8,11 @@ public class UIManager : MonoBehaviour
 
     [Header("Floating Instruction")]
     [SerializeField] private GameObject floatingTextObject;
-    [SerializeField] private TextMeshPro floatingText;
+    [SerializeField] private TextMeshProUGUI floatingText;
 
     [Header("Round Status")]
-    [SerializeField] private TextMeshPro minigameStatusText;
-    [SerializeField] private TextMeshPro playersRemainingText;
+    [SerializeField] private TextMeshProUGUI minigameStatusText;
+    [SerializeField] private TextMeshProUGUI playersRemainingText;
 
     [Header("Welcome")]
     [TextArea(2, 4)]
@@ -297,7 +297,7 @@ public class UIManager : MonoBehaviour
     }
 
     private IEnumerator FadeText(
-        TextMeshPro text,
+        TextMeshProUGUI text,
         float from,
         float to,
         int myVersion)
@@ -333,7 +333,7 @@ public class UIManager : MonoBehaviour
         SetTextAlpha(floatingText, alpha);
     }
 
-    private void SetTextAlpha(TextMeshPro text, float alpha)
+    private void SetTextAlpha(TextMeshProUGUI text, float alpha)
     {
         if (text == null)
         {

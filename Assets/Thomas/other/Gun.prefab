@@ -60,8 +60,8 @@ Transform:
   m_GameObject: {fileID: 2467222140767423862}
   serializedVersion: 2
   m_LocalRotation: {x: 0.7071068, y: 0, z: 0, w: 0.7071068}
-  m_LocalPosition: {x: -0, y: -0, z: 0.1909}
-  m_LocalScale: {x: 0.0054752, y: 0.18805669, z: 0.0054752}
+  m_LocalPosition: {x: 0, y: 0, z: 0.50814}
+  m_LocalScale: {x: 0.0054752, y: 0.50529724, z: 0.0054752}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1966918748251442328}
@@ -146,7 +146,7 @@ CapsuleCollider:
   m_Radius: 1.82
   m_Height: 2
   m_Direction: 1
-  m_Center: {x: 0.000000059604645, y: 0.13, z: -0.00000008940697}
+  m_Center: {x: 0.000000059604645, y: 0.08, z: -0.00000008940697}
 --- !u!1 &3785132745522855999
 GameObject:
   m_ObjectHideFlags: 0
@@ -198,7 +198,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.47, y: 0.6184108, z: 0.26}
+  m_Size: {x: 0.77, y: 0.85, z: 0.54}
   m_Center: {x: 5.504422e-10, y: -0.18541837, z: 8.982826e-11}
 --- !u!1 &4374226455950212719
 GameObject:
@@ -575,7 +575,7 @@ MonoBehaviour:
         m_MethodName: PlayOneShot
         m_Mode: 2
         m_Arguments:
-          m_ObjectArgument: {fileID: 8300000, guid: 950d036003b53c94ea4fcd274bdda1ca,
+          m_ObjectArgument: {fileID: 8300000, guid: 9379b6441f9fde14c8520021e4c5aa80,
             type: 3}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.AudioClip, UnityEngine
           m_IntArgument: 0
