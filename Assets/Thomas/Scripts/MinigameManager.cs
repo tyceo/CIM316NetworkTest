@@ -131,8 +131,15 @@ public class MinigameManager : NetworkBehaviour
 
         PlayCalmMusicRpc();
 
+        // During the 7-second calm intermission, show how many players survive.
+        // Final YOU WIN / ELIMINATED UI is still reserved for the actual match result.
+        ShowIntermissionPlayersRemainingRpc(GetPlayersRemainingMessage());
+
         // Calm break happens while players are NOT in an active minigame.
         yield return new WaitForSeconds(transitionBreakDuration);
+
+        // Remove the intermission text before the next minigame intro.
+        CancelUIRpc();
 
         if (myFlowVersion != flowVersion || isProcessingWin)
         {
@@ -960,6 +967,15 @@ public class MinigameManager : NetworkBehaviour
         }
     }
 
+    [Rpc(SendTo.Everyone)]
+    private void ShowIntermissionPlayersRemainingRpc(string playersMessage)
+    {
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowMessageNoTimer(playersMessage);
+        }
+    }
+
 
     [Rpc(SendTo.Everyone)]
     private void ShowRoundResultRpc()
@@ -1207,10 +1223,10 @@ public class MinigameManager : NetworkBehaviour
                 {
                     lastShownSecond = second;
 
-                   ShowInstructionRpc(
-                   "SHOOT, DON'T SHOOT... JUST SURVIVE!\n" + second,
-                    1.05f
-            );
+                    ShowInstructionRpc(
+                        "SHOOT, DON'T SHOOT... JUST SURVIVE!\n" + second,
+                        1.05f
+                    );
                 }
             }
 
