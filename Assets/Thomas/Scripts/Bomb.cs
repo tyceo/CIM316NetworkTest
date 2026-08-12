@@ -392,6 +392,14 @@ public class Bomb : NetworkBehaviour
         Debug.Log(
             $"Bomb transferred: {previousValue} -> {newValue}"
         );
+
+        if (XRINetworkPlayer.LocalPlayer != null &&
+            previousValue != ulong.MaxValue &&
+            XRINetworkPlayer.LocalPlayer.OwnerClientId == previousValue &&
+            UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowMessage("YOU PASSED THE BOMB!", 1.5f);
+        }
     }
 
     void OnTimeChanged(
