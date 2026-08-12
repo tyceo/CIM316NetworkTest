@@ -28,7 +28,7 @@ public class WheelSpin : MonoBehaviour
         }
 
         // Auto spin timer
-        if (!isSpinning)
+        if (!isSpinning && minigameManager.minigameRunning.Value)
         {
             autoSpinTimer += Time.deltaTime;
             if (autoSpinTimer >= autoSpinInterval)
