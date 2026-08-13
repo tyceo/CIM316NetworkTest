@@ -375,4 +375,59 @@ public class UIManager : MonoBehaviour
             floatingTextObject.SetActive(false);
         }
     }
+
+    public void ShowStartMessage(string message, float duration)
+{
+    if (temporaryMessage != null)
+    {
+        StopCoroutine(temporaryMessage);
+        temporaryMessage = null;
+    }
+
+    temporaryMessage = StartCoroutine(
+        StartMessageRoutine(message, duration)
+    );
+}
+
+    private IEnumerator StartMessageRoutine(string message, float duration)
+    {
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(true);
+        }
+
+        SetFloatingText(message, 1f);
+
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            // Keep this message visible for the entire requested duration.
+            if (floatingTextObject != null)
+            {
+                floatingTextObject.SetActive(true);
+            }
+
+            if (floatingText != null)
+            {
+                floatingText.text = message;
+                SetTextAlpha(floatingText, 1f);
+            }
+
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        if (floatingText != null && floatingText.text == message)
+        {
+            floatingText.text = "";
+        }
+
+        if (floatingTextObject != null)
+        {
+            floatingTextObject.SetActive(false);
+        }
+
+        temporaryMessage = null;
+    }
 }

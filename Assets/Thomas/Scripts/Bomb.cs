@@ -393,12 +393,32 @@ public class Bomb : NetworkBehaviour
             $"Bomb transferred: {previousValue} -> {newValue}"
         );
 
-        if (XRINetworkPlayer.LocalPlayer != null &&
-            previousValue != ulong.MaxValue &&
-            XRINetworkPlayer.LocalPlayer.OwnerClientId == previousValue &&
-            UIManager.Instance != null)
+        if (XRINetworkPlayer.LocalPlayer == null ||
+            UIManager.Instance == null)
         {
-            UIManager.Instance.ShowMessage("YOU PASSED THE BOMB!", 1.5f);
+            return;
+        }
+
+        ulong localPlayerId =
+            XRINetworkPlayer.LocalPlayer.OwnerClientId;
+
+        // The player who just got the bomb.
+        if (localPlayerId == newValue)
+        {
+            UIManager.Instance.ShowMessage(
+                "YOU HAVE THE BOMB!",
+                1.5f
+            );
+        }
+        // The player who successfully passed it.
+        else if (
+            previousValue != ulong.MaxValue &&
+            localPlayerId == previousValue)
+        {
+            UIManager.Instance.ShowMessage(
+                "YOU PASSED THE BOMB!",
+                1.5f
+            );
         }
     }
 

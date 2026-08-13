@@ -35,8 +35,10 @@ public class MinigameManager : NetworkBehaviour
     [Header("Music")]
     [SerializeField] private AudioClip inGameMusic;
     [SerializeField] private AudioClip calmMusic;
-    [Range(0f, 1f)] [SerializeField] private float inGameMusicVolume = 0.5f;
-    [Range(0f, 1f)] [SerializeField] private float calmMusicVolume = 0.5f;
+    [Range(0f, 1f)]
+    [SerializeField] private float inGameMusicVolume = 0.5f;
+    [Range(0f, 1f)]
+    [SerializeField] private float calmMusicVolume = 0.5f;
 
     [Header("Round Transition")]
     [SerializeField] private float transitionBreakDuration = 7f;
@@ -45,6 +47,9 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private float meltRoundDuration = 20f;
     [SerializeField] private float swordRoundDuration = 20f;
     [SerializeField] private float gunRoundDuration = 5f;
+
+    [Header("Round Start")]
+    [SerializeField] private float startsNowDuration = 1f;
 
     private Coroutine timedMinigameCoroutine = null;
 
@@ -62,9 +67,6 @@ public class MinigameManager : NetworkBehaviour
 
     private bool isProcessingWin = false;
     private bool isRoundTransitionRunning = false;
-
-    // Any old transition/timer coroutine becomes invalid when this changes.
-    private int flowVersion = 0;
 
     private Dictionary<GameObject, Vector3> flashlightOriginalPositions = new Dictionary<GameObject, Vector3>();
     private Vector3 flashlightHidePosition = new Vector3(220.5f, -73.0199966f, -190f);
@@ -88,21 +90,10 @@ public class MinigameManager : NetworkBehaviour
 
     int RollMinigame()
     {
-    // Hot Potato (4) appears more often in the pool
-        List<int> options = new List<int>
-        {
-            1, // Melt
-            2, // Sword
-            3, // One Shot
-            4 // Hot Potato
-          
-        };
-
-        // Still don't allow the same minigame twice in a row
-        options.RemoveAll(x => x == lastMinigame);
+        List<int> options = new List<int> { 1, 2, 3, 4 };
+        options.Remove(lastMinigame);
 
         int chosen = options[Random.Range(0, options.Count)];
-
         lastMinigame = chosen;
 
         return chosen;
@@ -115,70 +106,82 @@ public class MinigameManager : NetworkBehaviour
             yield break;
         }
 
-        int myFlowVersion = ++flowVersion;
-
         isRoundTransitionRunning = true;
         isLoadingMinigame.Value = true;
         minigameRunning.Value = false;
 
-        CancelTimedMinigame();
-        CancelUIRpc();
+        StopTimedMinigame();
 
-        // IMPORTANT:
-        // 0 means "no active minigame". This immediately cleans up the old round
-        // and prevents the NEXT minigame's torch/sword/gun/bomb from appearing early.
+        // Hide the previous minigame using the ORIGINAL object logic.
         currentMinigame.Value = 0;
 
+        CancelUIRpc();
         PlayCalmMusicRpc();
 
-        // During the 7-second calm intermission, show how many players survive.
-        // Final YOU WIN / ELIMINATED UI is still reserved for the actual match result.
-        ShowIntermissionPlayersRemainingRpc(GetPlayersRemainingMessage());
+        ShowSurvivorCooldownRpc(
+            "READY FOR NEXT MINIGAME\n" + GetPlayersRemainingMessage()
+        );
 
-        // Calm break happens while players are NOT in an active minigame.
         yield return new WaitForSeconds(transitionBreakDuration);
 
-        // Remove the intermission text before the next minigame intro.
+        if (isProcessingWin)
+        {
+            yield break;
+        }
+
         CancelUIRpc();
 
-        if (myFlowVersion != flowVersion || isProcessingWin)
-        {
-            yield break;
-        }
+        ShowActivePlayerMessageRpc(
+            "MINIGAME IS LOADING...",
+            minigameStartDelay
+        );
 
-        // The seven-second calm break is over.
-        // Start the normal game music now, even while the intro UI is showing.
-        PlayInGameMusicRpc();
-
-        TeleportAllPlayersToSpawns();
         yield return new WaitForSeconds(minigameStartDelay);
 
-        if (myFlowVersion != flowVersion || isProcessingWin)
+        if (isProcessingWin)
         {
             yield break;
         }
 
+        string minigameName = GetMinigameName(newMinigame);
+        string playersMessage = GetPlayersRemainingMessage();
+        string instruction = GetInstructionForMinigame(newMinigame);
+
         ShowRoundSequenceRpc(
-            GetMinigameName(newMinigame),
-            GetPlayersRemainingMessage(),
-            GetInstructionForMinigame(newMinigame)
+            minigameName,
+            playersMessage,
+            instruction
         );
 
         yield return new WaitForSeconds(GetRoundSequenceDuration());
 
-        if (myFlowVersion != flowVersion || isProcessingWin)
+        if (isProcessingWin)
         {
             yield break;
         }
 
-        // Only NOW activate the next minigame objects.
+        UIManager.Instance.ShowStartMessage(
+            "MINIGAME STARTS NOW!",
+            startsNowDuration
+        );
+
+        yield return new WaitForSeconds(startsNowDuration);
+
+        if (isProcessingWin)
+        {
+            yield break;
+        }
+
+        // ONLY NOW does the selected minigame become active.
+        // Your original ice/flashlight/sword/gun/bomb code reacts to this.
         currentMinigame.Value = newMinigame;
 
         isLoadingMinigame.Value = false;
         minigameRunning.Value = true;
         isRoundTransitionRunning = false;
 
-        StartTimedMinigameIfNeeded(newMinigame);
+        PlayInGameMusicForSurvivorsRpc();
+        StartTimedMinigame(newMinigame);
     }
 
     void Start()
@@ -195,6 +198,13 @@ public class MinigameManager : NetworkBehaviour
 
         audioSource.playOnAwake = false;
         audioSource.spatialBlend = 0f;
+
+        // If the old AudioSource already has the normal game track,
+        // keep using it unless In Game Music is assigned explicitly.
+        if (inGameMusic == null && audioSource.clip != null)
+        {
+            inGameMusic = audioSource.clip;
+        }
 
         currentMinigame.OnValueChanged += OnMinigameChanged;
         isLoadingMinigame.OnValueChanged += (prev, next) => UpdateMinigameText();
@@ -228,11 +238,6 @@ public class MinigameManager : NetworkBehaviour
             CheckPlayersHeight();
         }
 
-        if (IsOwner && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
-        {
-            currentMinigame.Value = currentMinigame.Value == 1 ? 0 : 1;
-        }
-
         // Player count is shown only during the round-introduction sequence.
     }
 
@@ -253,11 +258,16 @@ public class MinigameManager : NetworkBehaviour
 
         if (isLoadingMinigame.Value)
         {
-            // Transition/intro UI is controlled by UIManager.
-            // Do not run a second unsynchronised "Currently loading" message.
+            message = "Currently loading";
+
             if (currentMinigameText != null)
             {
-                currentMinigameText.text = "";
+                currentMinigameText.text = message;
+            }
+
+            if (UIManager.Instance != null)
+            {
+                UIManager.Instance.SetMinigameStatus(message);
             }
 
             return;
@@ -744,7 +754,6 @@ public class MinigameManager : NetworkBehaviour
             // If there are still multiple players remaining, transition to a new minigame
             if (playersRemaining > 1 && !isProcessingWin && !isRoundTransitionRunning)
             {
-                CancelTimedMinigame();
                 int newMinigame = RollMinigame();
                 StartCoroutine(TransitionToMinigame(newMinigame));
                 return;
@@ -755,6 +764,7 @@ public class MinigameManager : NetworkBehaviour
         if (playersAboveThreshold > lastEliminatedCount)
         {
             lastEliminatedCount = playersAboveThreshold;
+            ShowEliminatedGameOngoingRpc();
         }
 
         if (allPlayers.Count > 1 &&
@@ -774,10 +784,6 @@ public class MinigameManager : NetworkBehaviour
         }
 
         isProcessingWin = true;
-
-        // Kill any older transition that might later switch the music/UI again.
-        flowVersion++;
-
         isRoundTransitionRunning = false;
         minigameRunning.Value = false;
         shouldHideObject.Value = true;
@@ -797,26 +803,23 @@ public class MinigameManager : NetworkBehaviour
         lastEliminatedCount = 0;
         shouldHideObject.Value = false;
 
-        CancelTimedMinigame();
+        StopTimedMinigame();
+
         currentMinigame.Value = 0;
-        minigameRunning.Value = false;
         isLoadingMinigame.Value = false;
-        isRoundTransitionRunning = false;
+        minigameRunning.Value = false;
 
         CancelUIRpc();
         ShowWelcomeRpc();
         PlayCalmMusicRpc();
 
-        // Stay idle until the host starts a new game.
+        // No auto restart. Wait for the host.
         isProcessingWin = false;
     }
 
     public void StartMinigame()
     {
         if (!IsOwner) return;
-
-        // This is a brand-new match. Invalidate any old lobby/transition coroutine.
-        flowVersion++;
 
         // Store the lift coroutine reference before stopping others
         Coroutine savedLiftCoroutine = liftCoroutine;
@@ -838,17 +841,14 @@ public class MinigameManager : NetworkBehaviour
         CancelUIRpc();
         HideWelcomeRpc();
 
-        // Start music immediately when the host starts the game.
-        // The intro UI can play over the normal in-game track.
-        PlayInGameMusicRpc();
+        StopTimedMinigame();
+        PlayCalmMusicRpc();
 
         StartCoroutine(StartMinigameDelayed());
     }
 
     IEnumerator StartMinigameDelayed()
     {
-        int myFlowVersion = flowVersion;
-
         lastEliminatedCount = 0;
         isRoundTransitionRunning = true;
         isLoadingMinigame.Value = true;
@@ -856,40 +856,48 @@ public class MinigameManager : NetworkBehaviour
 
         CancelUIRpc();
 
-        // Keep all minigame-specific objects hidden during teleport + intro.
-        currentMinigame.Value = 0;
-
         int selectedMinigame = RollMinigame();
 
+        // Nothing spawns while loading.
+        currentMinigame.Value = 0;
+
         TeleportAllPlayersToSpawns();
+
+        ShowActivePlayerMessageRpc(
+            "MINIGAME IS LOADING...",
+            minigameStartDelay
+        );
+
         yield return new WaitForSeconds(minigameStartDelay);
 
-        if (myFlowVersion != flowVersion || isProcessingWin)
-        {
-            yield break;
-        }
+        string minigameName = GetMinigameName(selectedMinigame);
+        string playersMessage = GetPlayersRemainingMessage();
+        string instruction = GetInstructionForMinigame(selectedMinigame);
 
         ShowRoundSequenceRpc(
-            GetMinigameName(selectedMinigame),
-            GetPlayersRemainingMessage(),
-            GetInstructionForMinigame(selectedMinigame)
+            minigameName,
+            playersMessage,
+            instruction
         );
 
         yield return new WaitForSeconds(GetRoundSequenceDuration());
 
-        if (myFlowVersion != flowVersion || isProcessingWin)
-        {
-            yield break;
-        }
+        ShowActivePlayerMessageRpc(
+            "MINIGAME STARTS NOW!",
+            startsNowDuration
+        );
 
-        // Activate the first minigame only after its intro has finished.
+        yield return new WaitForSeconds(startsNowDuration);
+
+        // ORIGINAL object logic starts here.
         currentMinigame.Value = selectedMinigame;
 
         isLoadingMinigame.Value = false;
         isRoundTransitionRunning = false;
         minigameRunning.Value = true;
 
-        StartTimedMinigameIfNeeded(selectedMinigame);
+        PlayInGameMusicForSurvivorsRpc();
+        StartTimedMinigame(selectedMinigame);
     }
 
     void TeleportAllPlayersToSpawns()
@@ -967,15 +975,75 @@ public class MinigameManager : NetworkBehaviour
         }
     }
 
+
     [Rpc(SendTo.Everyone)]
-    private void ShowIntermissionPlayersRemainingRpc(string playersMessage)
+    private void ShowEliminatedGameOngoingRpc()
     {
-        if (UIManager.Instance != null)
+        if (UIManager.Instance == null)
         {
-            UIManager.Instance.ShowMessageNoTimer(playersMessage);
+            return;
+        }
+
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y > heightThreshold)
+        {
+            UIManager.Instance.ShowMessageNoTimer(
+                "YOU ARE ELIMINATED\nGAME ONGOING"
+            );
+
+            PlayMusic(calmMusic, calmMusicVolume);
         }
     }
 
+    [Rpc(SendTo.Everyone)]
+    private void ShowSurvivorCooldownRpc(string message)
+    {
+        if (UIManager.Instance == null)
+        {
+            return;
+        }
+
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y > heightThreshold)
+        {
+            UIManager.Instance.ShowMessageNoTimer(
+                "YOU ARE ELIMINATED\nGAME ONGOING"
+            );
+        }
+        else
+        {
+            UIManager.Instance.ShowMessageNoTimer(message);
+        }
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ShowActivePlayerMessageRpc(
+        string message,
+        float duration)
+    {
+        if (UIManager.Instance == null)
+        {
+            return;
+        }
+
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y > heightThreshold)
+        {
+            UIManager.Instance.ShowMessageNoTimer(
+                "YOU ARE ELIMINATED\nGAME ONGOING"
+            );
+        }
+        else
+        {
+            UIManager.Instance.ShowMessage(message, duration);
+        }
+    }
 
     [Rpc(SendTo.Everyone)]
     private void ShowRoundResultRpc()
@@ -1033,32 +1101,16 @@ public class MinigameManager : NetworkBehaviour
                 playersMessage,
                 instruction
             );
+
+            XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+            if (minigameName == "SWORD" &&
+                (localPlayer == null ||
+                 localPlayer.transform.position.y <= heightThreshold))
+            {
+                PlaySwordGuitarSound();
+            }
         }
-
-        if (minigameName == "SWORD")
-        {
-            PlaySwordGuitarSound();
-        }
-    }
-
-    private void PlayVictorySound()
-    {
-        if (victorySound == null || audioSource == null)
-        {
-            return;
-        }
-
-        audioSource.PlayOneShot(victorySound, victoryVolume);
-    }
-
-    private void PlaySwordGuitarSound()
-    {
-        if (swordGuitarSound == null || audioSource == null)
-        {
-            return;
-        }
-
-        audioSource.PlayOneShot(swordGuitarSound, swordGuitarVolume);
     }
 
     private float GetRoundSequenceDuration()
@@ -1139,17 +1191,20 @@ public class MinigameManager : NetworkBehaviour
         }
     }
 
-    private void StartTimedMinigameIfNeeded(int minigame)
+    private void StartTimedMinigame(int minigame)
     {
-        if (!IsOwner) return;
+        if (!IsOwner)
+        {
+            return;
+        }
 
-        CancelTimedMinigame();
+        StopTimedMinigame();
 
         switch (minigame)
         {
-            case 1: // MELT / Flashlight
+            case 1:
                 timedMinigameCoroutine = StartCoroutine(
-                    GenericTimedRound(
+                    TimedMinigameRoutine(
                         1,
                         meltRoundDuration,
                         "MELT MINIGAME OVER!",
@@ -1158,9 +1213,9 @@ public class MinigameManager : NetworkBehaviour
                 );
                 break;
 
-            case 2: // SWORD
+            case 2:
                 timedMinigameCoroutine = StartCoroutine(
-                    GenericTimedRound(
+                    TimedMinigameRoutine(
                         2,
                         swordRoundDuration,
                         "SWORD MINIGAME OVER!",
@@ -1169,9 +1224,9 @@ public class MinigameManager : NetworkBehaviour
                 );
                 break;
 
-            case 3: // ONE SHOT
+            case 3:
                 timedMinigameCoroutine = StartCoroutine(
-                    GenericTimedRound(
+                    TimedMinigameRoutine(
                         3,
                         gunRoundDuration,
                         "TIME'S UP!",
@@ -1181,41 +1236,38 @@ public class MinigameManager : NetworkBehaviour
                 break;
 
             case 4:
-                // HOT POTATO is controlled by the bomb's own timer/explosion.
+                // Hot Potato stays controlled by Bomb.cs.
                 timedMinigameCoroutine = null;
                 break;
         }
     }
 
-    private void CancelTimedMinigame()
+    private void StopTimedMinigame()
     {
-        if (timedMinigameCoroutine == null)
+        if (timedMinigameCoroutine != null)
         {
-            return;
+            StopCoroutine(timedMinigameCoroutine);
+            timedMinigameCoroutine = null;
         }
-
-        StopCoroutine(timedMinigameCoroutine);
-        timedMinigameCoroutine = null;
     }
 
-    private IEnumerator GenericTimedRound(
-        int minigameId,
+    private IEnumerator TimedMinigameRoutine(
+        int minigame,
         float duration,
         string endMessage,
-        bool showCountdown)
+        bool visibleCountdown)
     {
         float remaining = duration;
         int lastShownSecond = -1;
 
         while (
             remaining > 0f &&
-            currentMinigame.Value == minigameId &&
+            currentMinigame.Value == minigame &&
             minigameRunning.Value &&
             !isProcessingWin &&
-            !isRoundTransitionRunning
-        )
+            !isRoundTransitionRunning)
         {
-            if (showCountdown)
+            if (visibleCountdown)
             {
                 int second = Mathf.CeilToInt(remaining);
 
@@ -1223,7 +1275,7 @@ public class MinigameManager : NetworkBehaviour
                 {
                     lastShownSecond = second;
 
-                    ShowInstructionRpc(
+                    ShowActivePlayerMessageRpc(
                         "SHOOT, DON'T SHOOT... JUST SURVIVE!\n" + second,
                         1.05f
                     );
@@ -1235,11 +1287,10 @@ public class MinigameManager : NetworkBehaviour
         }
 
         if (
-            currentMinigame.Value != minigameId ||
+            currentMinigame.Value != minigame ||
             !minigameRunning.Value ||
             isProcessingWin ||
-            isRoundTransitionRunning
-        )
+            isRoundTransitionRunning)
         {
             timedMinigameCoroutine = null;
             yield break;
@@ -1247,29 +1298,21 @@ public class MinigameManager : NetworkBehaviour
 
         minigameRunning.Value = false;
 
-        if (minigameId == 3)
-        {
-            CleanupGuns();
-        }
-
-        ShowInstructionRpc(endMessage, 2f);
+        ShowActivePlayerMessageRpc(endMessage, 2f);
 
         yield return new WaitForSeconds(2f);
 
-        if (isProcessingWin)
+        if (!isProcessingWin)
         {
+            int nextMinigame = RollMinigame();
+
             timedMinigameCoroutine = null;
-            yield break;
+            isRoundTransitionRunning = false;
+
+            StartCoroutine(
+                TransitionToMinigame(nextMinigame)
+            );
         }
-
-        int newMinigame = RollMinigame();
-
-        timedMinigameCoroutine = null;
-        isRoundTransitionRunning = false;
-
-        StartCoroutine(
-            TransitionToMinigame(newMinigame)
-        );
     }
 
     [Rpc(SendTo.Everyone)]
@@ -1279,9 +1322,19 @@ public class MinigameManager : NetworkBehaviour
     }
 
     [Rpc(SendTo.Everyone)]
-    private void PlayInGameMusicRpc()
+    private void PlayInGameMusicForSurvivorsRpc()
     {
-        PlayMusic(inGameMusic, inGameMusicVolume);
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y > heightThreshold)
+        {
+            PlayMusic(calmMusic, calmMusicVolume);
+        }
+        else
+        {
+            PlayMusic(inGameMusic, inGameMusicVolume);
+        }
     }
 
     private void PlayCalmMusic()
@@ -1289,17 +1342,47 @@ public class MinigameManager : NetworkBehaviour
         PlayMusic(calmMusic, calmMusicVolume);
     }
 
-    private void PlayMusic(AudioClip clip, float volume)
+    private void PlayMusic(
+        AudioClip clip,
+        float volume)
     {
-        if (audioSource == null || clip == null) return;
+        if (audioSource == null || clip == null)
+        {
+            return;
+        }
 
-        // This AudioSource is the music channel: only one music clip can play at a time.
         audioSource.Stop();
         audioSource.clip = clip;
         audioSource.loop = true;
         audioSource.volume = volume;
         audioSource.pitch = 1f;
         audioSource.Play();
+    }
+
+    private void PlayVictorySound()
+    {
+        if (audioSource == null || victorySound == null)
+        {
+            return;
+        }
+
+        audioSource.PlayOneShot(
+            victorySound,
+            victoryVolume
+        );
+    }
+
+    private void PlaySwordGuitarSound()
+    {
+        if (audioSource == null || swordGuitarSound == null)
+        {
+            return;
+        }
+
+        audioSource.PlayOneShot(
+            swordGuitarSound,
+            swordGuitarVolume
+        );
     }
 
     public void TriggerLift()
@@ -1373,7 +1456,7 @@ public class MinigameManager : NetworkBehaviour
     {
         if (!IsOwner) return;
 
-        ShowInstructionRpc("SHOOT, DON'T SHOOT... JUST SURVIVE!", 3f);
+        ShowInstructionRpc("SHOOT OR DON'T SHOOT, JUST SURVIVE!", 3f);
 
         currentMinigame.Value = 3;
         
