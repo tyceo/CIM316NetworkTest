@@ -112,8 +112,8 @@ public class MinigameManager : NetworkBehaviour
 
         StopTimedMinigame();
 
-     
-        currentMinigame.Value = newMinigame;
+        // Hide the previous minigame using the ORIGINAL object logic.
+        currentMinigame.Value = 0;
 
         CancelUIRpc();
         PlayCalmMusicRpc();
@@ -858,7 +858,8 @@ public class MinigameManager : NetworkBehaviour
 
         int selectedMinigame = RollMinigame();
 
-        currentMinigame.Value = selectedMinigame;
+        // Nothing spawns while loading.
+        currentMinigame.Value = 0;
 
         TeleportAllPlayersToSpawns();
 
