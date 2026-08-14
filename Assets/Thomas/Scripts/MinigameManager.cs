@@ -32,6 +32,27 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private float swordGuitarVolume = 1f;
     [SerializeField] private AudioSource audioSource;
 
+    [Header("Music")]
+    [SerializeField] private AudioClip inGameMusic;
+    [SerializeField] private AudioClip calmMusic;
+    [Range(0f, 1f)]
+    [SerializeField] private float inGameMusicVolume = 0.5f;
+    [Range(0f, 1f)]
+    [SerializeField] private float calmMusicVolume = 0.5f;
+
+    [Header("Round Transition")]
+    [SerializeField] private float transitionBreakDuration = 7f;
+
+    [Header("Timed Minigames")]
+    [SerializeField] private float meltRoundDuration = 20f;
+    [SerializeField] private float swordRoundDuration = 20f;
+    [SerializeField] private float gunRoundDuration = 5f;
+
+    [Header("Round Start")]
+    [SerializeField] private float startsNowDuration = 1f;
+
+    private Coroutine timedMinigameCoroutine = null;
+
     private float liftYStart = -18f;
     private float liftYEnd = 127.7f;
     private float liftStayDuration = 5f;
@@ -69,21 +90,10 @@ public class MinigameManager : NetworkBehaviour
 
     int RollMinigame()
     {
-    // Hot Potato (4) appears more often in the pool
-        List<int> options = new List<int>
-        {
-            1, // Melt
-            2, // Sword
-            3, // One Shot
-            4, // Hot Potato
-            4  // Extra Hot Potato chance
-        };
-
-        // Still don't allow the same minigame twice in a row
-        options.RemoveAll(x => x == lastMinigame);
+        List<int> options = new List<int> { 1, 2, 3, 4 };
+        options.Remove(lastMinigame);
 
         int chosen = options[Random.Range(0, options.Count)];
-
         lastMinigame = chosen;
 
         return chosen;
@@ -100,7 +110,38 @@ public class MinigameManager : NetworkBehaviour
         isLoadingMinigame.Value = true;
         minigameRunning.Value = false;
 
-        currentMinigame.Value = newMinigame;
+        StopTimedMinigame();
+
+        // Hide the previous minigame using the ORIGINAL object logic.
+        currentMinigame.Value = 0;
+
+        CancelUIRpc();
+        PlayCalmMusicRpc();
+
+        ShowSurvivorCooldownRpc(
+            "READY FOR NEXT MINIGAME\n" + GetPlayersRemainingMessage()
+        );
+
+        yield return new WaitForSeconds(transitionBreakDuration);
+
+        if (isProcessingWin)
+        {
+            yield break;
+        }
+
+        CancelUIRpc();
+
+        ShowActivePlayerMessageRpc(
+            "MINIGAME IS LOADING...",
+            minigameStartDelay
+        );
+
+        yield return new WaitForSeconds(minigameStartDelay);
+
+        if (isProcessingWin)
+        {
+            yield break;
+        }
 
         string minigameName = GetMinigameName(newMinigame);
         string playersMessage = GetPlayersRemainingMessage();
@@ -114,9 +155,33 @@ public class MinigameManager : NetworkBehaviour
 
         yield return new WaitForSeconds(GetRoundSequenceDuration());
 
+        if (isProcessingWin)
+        {
+            yield break;
+        }
+
+        UIManager.Instance.ShowStartMessage(
+            "MINIGAME STARTS NOW!",
+            startsNowDuration
+        );
+
+        yield return new WaitForSeconds(startsNowDuration);
+
+        if (isProcessingWin)
+        {
+            yield break;
+        }
+
+        // ONLY NOW does the selected minigame become active.
+        // Your original ice/flashlight/sword/gun/bomb code reacts to this.
+        currentMinigame.Value = newMinigame;
+
         isLoadingMinigame.Value = false;
         minigameRunning.Value = true;
         isRoundTransitionRunning = false;
+
+        PlayInGameMusicForSurvivorsRpc();
+        StartTimedMinigame(newMinigame);
     }
 
     void Start()
@@ -134,6 +199,13 @@ public class MinigameManager : NetworkBehaviour
         audioSource.playOnAwake = false;
         audioSource.spatialBlend = 0f;
 
+        // If the old AudioSource already has the normal game track,
+        // keep using it unless In Game Music is assigned explicitly.
+        if (inGameMusic == null && audioSource.clip != null)
+        {
+            inGameMusic = audioSource.clip;
+        }
+
         currentMinigame.OnValueChanged += OnMinigameChanged;
         isLoadingMinigame.OnValueChanged += (prev, next) => UpdateMinigameText();
 
@@ -150,6 +222,8 @@ public class MinigameManager : NetworkBehaviour
         {
             UIManager.Instance.ShowWelcomeMessage();
         }
+
+        PlayCalmMusic();
     }
 
     void Update()
@@ -162,11 +236,6 @@ public class MinigameManager : NetworkBehaviour
         if (IsOwner && minigameRunning.Value && !isProcessingWin && !isLoadingMinigame.Value)
         {
             CheckPlayersHeight();
-        }
-
-        if (IsOwner && Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame)
-        {
-            currentMinigame.Value = currentMinigame.Value == 1 ? 0 : 1;
         }
 
         // Player count is shown only during the round-introduction sequence.
@@ -695,6 +764,7 @@ public class MinigameManager : NetworkBehaviour
         if (playersAboveThreshold > lastEliminatedCount)
         {
             lastEliminatedCount = playersAboveThreshold;
+            ShowEliminatedGameOngoingRpc();
         }
 
         if (allPlayers.Count > 1 &&
@@ -732,10 +802,19 @@ public class MinigameManager : NetworkBehaviour
 
         lastEliminatedCount = 0;
         shouldHideObject.Value = false;
-        isProcessingWin = false;
 
-        // Automatically begin the next round. Do not return to the welcome screen.
-        StartCoroutine(StartMinigameDelayed());
+        StopTimedMinigame();
+
+        currentMinigame.Value = 0;
+        isLoadingMinigame.Value = false;
+        minigameRunning.Value = false;
+
+        CancelUIRpc();
+        ShowWelcomeRpc();
+        PlayCalmMusicRpc();
+
+        // No auto restart. Wait for the host.
+        isProcessingWin = false;
     }
 
     public void StartMinigame()
@@ -761,6 +840,10 @@ public class MinigameManager : NetworkBehaviour
 
         CancelUIRpc();
         HideWelcomeRpc();
+
+        StopTimedMinigame();
+        PlayCalmMusicRpc();
+
         StartCoroutine(StartMinigameDelayed());
     }
 
@@ -774,9 +857,17 @@ public class MinigameManager : NetworkBehaviour
         CancelUIRpc();
 
         int selectedMinigame = RollMinigame();
-        currentMinigame.Value = selectedMinigame;
+
+        // Nothing spawns while loading.
+        currentMinigame.Value = 0;
 
         TeleportAllPlayersToSpawns();
+
+        ShowActivePlayerMessageRpc(
+            "MINIGAME IS LOADING...",
+            minigameStartDelay
+        );
+
         yield return new WaitForSeconds(minigameStartDelay);
 
         string minigameName = GetMinigameName(selectedMinigame);
@@ -791,9 +882,22 @@ public class MinigameManager : NetworkBehaviour
 
         yield return new WaitForSeconds(GetRoundSequenceDuration());
 
+        ShowActivePlayerMessageRpc(
+            "MINIGAME STARTS NOW!",
+            startsNowDuration
+        );
+
+        yield return new WaitForSeconds(startsNowDuration);
+
+        // ORIGINAL object logic starts here.
+        currentMinigame.Value = selectedMinigame;
+
         isLoadingMinigame.Value = false;
         isRoundTransitionRunning = false;
         minigameRunning.Value = true;
+
+        PlayInGameMusicForSurvivorsRpc();
+        StartTimedMinigame(selectedMinigame);
     }
 
     void TeleportAllPlayersToSpawns()
@@ -873,6 +977,75 @@ public class MinigameManager : NetworkBehaviour
 
 
     [Rpc(SendTo.Everyone)]
+    private void ShowEliminatedGameOngoingRpc()
+    {
+        if (UIManager.Instance == null)
+        {
+            return;
+        }
+
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y > heightThreshold)
+        {
+            UIManager.Instance.ShowMessageNoTimer(
+                "YOU ARE ELIMINATED\nGAME ONGOING"
+            );
+
+            PlayMusic(calmMusic, calmMusicVolume);
+        }
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ShowSurvivorCooldownRpc(string message)
+    {
+        if (UIManager.Instance == null)
+        {
+            return;
+        }
+
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y > heightThreshold)
+        {
+            UIManager.Instance.ShowMessageNoTimer(
+                "YOU ARE ELIMINATED\nGAME ONGOING"
+            );
+        }
+        else
+        {
+            UIManager.Instance.ShowMessageNoTimer(message);
+        }
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ShowActivePlayerMessageRpc(
+        string message,
+        float duration)
+    {
+        if (UIManager.Instance == null)
+        {
+            return;
+        }
+
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y > heightThreshold)
+        {
+            UIManager.Instance.ShowMessageNoTimer(
+                "YOU ARE ELIMINATED\nGAME ONGOING"
+            );
+        }
+        else
+        {
+            UIManager.Instance.ShowMessage(message, duration);
+        }
+    }
+
+    [Rpc(SendTo.Everyone)]
     private void ShowRoundResultRpc()
     {
         if (UIManager.Instance == null)
@@ -928,32 +1101,16 @@ public class MinigameManager : NetworkBehaviour
                 playersMessage,
                 instruction
             );
+
+            XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+            if (minigameName == "SWORD" &&
+                (localPlayer == null ||
+                 localPlayer.transform.position.y <= heightThreshold))
+            {
+                PlaySwordGuitarSound();
+            }
         }
-
-        if (minigameName == "SWORD")
-        {
-            PlaySwordGuitarSound();
-        }
-    }
-
-    private void PlayVictorySound()
-    {
-        if (victorySound == null || audioSource == null)
-        {
-            return;
-        }
-
-        audioSource.PlayOneShot(victorySound, victoryVolume);
-    }
-
-    private void PlaySwordGuitarSound()
-    {
-        if (swordGuitarSound == null || audioSource == null)
-        {
-            return;
-        }
-
-        audioSource.PlayOneShot(swordGuitarSound, swordGuitarVolume);
     }
 
     private float GetRoundSequenceDuration()
@@ -1026,12 +1183,206 @@ public class MinigameManager : NetworkBehaviour
             case 2:
                 return "FIRST ONE TO GET THE SWORD CAN ELIMINATE THE OPPONENTS. SURVIVE THE ROUND!";
             case 3:
-                return "GRAB THE GUN. ONE SHOT ONLY!";
+                return "SHOOT, DON'T SHOOT... JUST SURVIVE!";
             case 4:
                 return "PASS THE BOMB! DON'T BE HOLDING IT WHEN IT EXPLODES!";
             default:
                 return "GET READY!";
         }
+    }
+
+    private void StartTimedMinigame(int minigame)
+    {
+        if (!IsOwner)
+        {
+            return;
+        }
+
+        StopTimedMinigame();
+
+        switch (minigame)
+        {
+            case 1:
+                timedMinigameCoroutine = StartCoroutine(
+                    TimedMinigameRoutine(
+                        1,
+                        meltRoundDuration,
+                        "MELT MINIGAME OVER!",
+                        false
+                    )
+                );
+                break;
+
+            case 2:
+                timedMinigameCoroutine = StartCoroutine(
+                    TimedMinigameRoutine(
+                        2,
+                        swordRoundDuration,
+                        "SWORD MINIGAME OVER!",
+                        false
+                    )
+                );
+                break;
+
+            case 3:
+                timedMinigameCoroutine = StartCoroutine(
+                    TimedMinigameRoutine(
+                        3,
+                        gunRoundDuration,
+                        "TIME'S UP!",
+                        true
+                    )
+                );
+                break;
+
+            case 4:
+                // Hot Potato stays controlled by Bomb.cs.
+                timedMinigameCoroutine = null;
+                break;
+        }
+    }
+
+    private void StopTimedMinigame()
+    {
+        if (timedMinigameCoroutine != null)
+        {
+            StopCoroutine(timedMinigameCoroutine);
+            timedMinigameCoroutine = null;
+        }
+    }
+
+    private IEnumerator TimedMinigameRoutine(
+        int minigame,
+        float duration,
+        string endMessage,
+        bool visibleCountdown)
+    {
+        float remaining = duration;
+        int lastShownSecond = -1;
+
+        while (
+            remaining > 0f &&
+            currentMinigame.Value == minigame &&
+            minigameRunning.Value &&
+            !isProcessingWin &&
+            !isRoundTransitionRunning)
+        {
+            if (visibleCountdown)
+            {
+                int second = Mathf.CeilToInt(remaining);
+
+                if (second != lastShownSecond)
+                {
+                    lastShownSecond = second;
+
+                    ShowActivePlayerMessageRpc(
+                        "SHOOT, DON'T SHOOT... JUST SURVIVE!\n" + second,
+                        1.05f
+                    );
+                }
+            }
+
+            remaining -= Time.deltaTime;
+            yield return null;
+        }
+
+        if (
+            currentMinigame.Value != minigame ||
+            !minigameRunning.Value ||
+            isProcessingWin ||
+            isRoundTransitionRunning)
+        {
+            timedMinigameCoroutine = null;
+            yield break;
+        }
+
+        minigameRunning.Value = false;
+
+        ShowActivePlayerMessageRpc(endMessage, 2f);
+
+        yield return new WaitForSeconds(2f);
+
+        if (!isProcessingWin)
+        {
+            int nextMinigame = RollMinigame();
+
+            timedMinigameCoroutine = null;
+            isRoundTransitionRunning = false;
+
+            StartCoroutine(
+                TransitionToMinigame(nextMinigame)
+            );
+        }
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void PlayCalmMusicRpc()
+    {
+        PlayMusic(calmMusic, calmMusicVolume);
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void PlayInGameMusicForSurvivorsRpc()
+    {
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+
+        if (localPlayer != null &&
+            localPlayer.transform.position.y > heightThreshold)
+        {
+            PlayMusic(calmMusic, calmMusicVolume);
+        }
+        else
+        {
+            PlayMusic(inGameMusic, inGameMusicVolume);
+        }
+    }
+
+    private void PlayCalmMusic()
+    {
+        PlayMusic(calmMusic, calmMusicVolume);
+    }
+
+    private void PlayMusic(
+        AudioClip clip,
+        float volume)
+    {
+        if (audioSource == null || clip == null)
+        {
+            return;
+        }
+
+        audioSource.Stop();
+        audioSource.clip = clip;
+        audioSource.loop = true;
+        audioSource.volume = volume;
+        audioSource.pitch = 1f;
+        audioSource.Play();
+    }
+
+    private void PlayVictorySound()
+    {
+        if (audioSource == null || victorySound == null)
+        {
+            return;
+        }
+
+        audioSource.PlayOneShot(
+            victorySound,
+            victoryVolume
+        );
+    }
+
+    private void PlaySwordGuitarSound()
+    {
+        if (audioSource == null || swordGuitarSound == null)
+        {
+            return;
+        }
+
+        audioSource.PlayOneShot(
+            swordGuitarSound,
+            swordGuitarVolume
+        );
     }
 
     public void TriggerLift()
@@ -1105,7 +1456,7 @@ public class MinigameManager : NetworkBehaviour
     {
         if (!IsOwner) return;
 
-        ShowInstructionRpc("GRAB THE GUN. ONE SHOT ONLY!", 3f);
+        ShowInstructionRpc("SHOOT OR DON'T SHOOT, JUST SURVIVE!", 3f);
 
         currentMinigame.Value = 3;
         
