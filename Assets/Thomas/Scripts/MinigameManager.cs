@@ -44,7 +44,6 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private float transitionBreakDuration = 7f;
 
     [Header("Timed Minigames")]
-    [SerializeField] private float meltRoundDuration = 20f;
     [SerializeField] private float swordRoundDuration = 20f;
     [SerializeField] private float gunRoundDuration = 5f;
 
@@ -1203,14 +1202,7 @@ public class MinigameManager : NetworkBehaviour
         switch (minigame)
         {
             case 1:
-                timedMinigameCoroutine = StartCoroutine(
-                    TimedMinigameRoutine(
-                        1,
-                        meltRoundDuration,
-                        "MELT MINIGAME OVER!",
-                        false
-                    )
-                );
+                timedMinigameCoroutine = null;
                 break;
 
             case 2:
