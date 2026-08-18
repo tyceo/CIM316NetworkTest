@@ -30,8 +30,8 @@ Material:
     - _Metallic: 0
     - _Smoothness: 0.065
     m_Colors:
-    - _BaseColor: {r: 0.41509432, g: 0.32883102, b: 0.14750203, a: 1}
-    - _Color: {r: 0.4150943, g: 0.32883096, b: 0.147502, a: 1}
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _Color: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &4224276452426000103
