@@ -238,6 +238,21 @@ public class MinigameManager : NetworkBehaviour
         }
 
         // Player count is shown only during the round-introduction sequence.
+        
+        if (IsOwner && Keyboard.current != null && Keyboard.current.digit9Key.wasPressedThisFrame)
+        {
+            if (minigameRunning.Value && !isProcessingWin && !isRoundTransitionRunning)
+            {
+                Debug.Log("9 key pressed - transitioning to new minigame");
+                int newMinigame = RollMinigame();
+                StartCoroutine(TransitionToMinigame(newMinigame));
+            }
+            else if (!minigameRunning.Value && !isProcessingWin && !isRoundTransitionRunning)
+            {
+                Debug.Log("9 key pressed - starting new minigame");
+                StartMinigame();
+            }
+        }
     }
 
     void OnMinigameChanged(int previousValue, int newValue)

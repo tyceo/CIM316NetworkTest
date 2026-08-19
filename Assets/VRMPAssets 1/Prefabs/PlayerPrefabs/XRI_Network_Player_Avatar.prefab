@@ -724,9 +724,9 @@ MonoBehaviour:
   minScale: 0.1
   destroyWhenMinimum: 1
   iceCrackSounds:
-  - {fileID: 8300000, guid: 9550b22535c244a52a72d34165f56dc3, type: 3}
+  - {fileID: 8300000, guid: fff1fc05027f9f241b17c2ee97269afd, type: 3}
   crackCooldown: 0.7
-  crackVolume: 0.8
+  crackVolume: 0.311
   audioSource: {fileID: 4112637730231462222}
 --- !u!114 &9155118293840301271
 MonoBehaviour:

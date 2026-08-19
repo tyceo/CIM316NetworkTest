@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class QuitScript : MonoBehaviour
 {
@@ -13,14 +14,26 @@ public class QuitScript : MonoBehaviour
     {
         
     }
+    public void LoadTutorialSceneAfterDelay()
+    {
+        StartCoroutine(LoadTutorialSceneCoroutine());
+    }
+
+    private System.Collections.IEnumerator LoadTutorialSceneCoroutine()
+    {
+        yield return new WaitForSeconds(2f);
+        SceneManager.LoadScene("Tutorial Scene");
+    }
 
     /// <summary>
     /// Quits the application after 3 seconds. In the editor, it stops play mode.
     /// </summary>
     public void QuitAfterDelay()
     {
-        StartCoroutine(QuitCoroutine());
+        //StartCoroutine(QuitCoroutine());
     }
+    
+    
 
     private System.Collections.IEnumerator QuitCoroutine()
     {
