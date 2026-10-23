@@ -725,8 +725,8 @@ MonoBehaviour:
   destroyWhenMinimum: 1
   iceCrackSounds:
   - {fileID: 8300000, guid: fff1fc05027f9f241b17c2ee97269afd, type: 3}
-  crackCooldown: 0.7
-  crackVolume: 0.311
+  crackCooldown: 1
+  crackVolume: 0.75
   audioSource: {fileID: 4112637730231462222}
 --- !u!114 &9155118293840301271
 MonoBehaviour:
@@ -1382,7 +1382,6 @@ GameObject:
   - component: {fileID: 7784919235243739335}
   - component: {fileID: 6459080385387869235}
   - component: {fileID: 7160619503108653233}
-  - component: {fileID: 7322904263196900610}
   - component: {fileID: 5472481283361044348}
   m_Layer: 0
   m_Name: Head
@@ -1476,32 +1475,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.58, y: 0.58, z: 0.58}
   m_Center: {x: 0, y: 0, z: -0.04}
---- !u!114 &7322904263196900610
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4257447556974277867}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d4d0409d548446549b153fb129fd4ae8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::HatPicker
-  ShowTopMostFoldoutHeaderGroup: 1
-  hats:
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
-  - {fileID: 0}
 --- !u!114 &5472481283361044348
 MonoBehaviour:
   m_ObjectHideFlags: 0

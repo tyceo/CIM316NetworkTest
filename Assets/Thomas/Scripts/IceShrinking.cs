@@ -14,15 +14,17 @@ public class IceShrinking : NetworkBehaviour
     [SerializeField] private AudioClip[] iceCrackSounds;
 
     [Tooltip("How often an ice crack can play.")]
-    [SerializeField] private float crackCooldown = 0.7f;
+    [SerializeField] private float crackCooldown = 2f;
 
     [Range(0f, 1f)]
-    [SerializeField] private float crackVolume = 0.8f;
+    [SerializeField] private float crackVolume = 0.25f;
 
     [SerializeField] private AudioSource audioSource;
 
     private bool isBeingLit = false;
     private Vector3 originalScale;
+    private MinigameManager minigameManager;
+    private Coroutine finalCrackCoroutine;
 
     private float lastHitTime;
     private float hitTimeout = 0.1f;
@@ -48,10 +50,33 @@ public class IceShrinking : NetworkBehaviour
 
         // Make cracking sound come from the ice.
         audioSource.spatialBlend = 1f;
+        audioSource.loop = false;
+
+        minigameManager = FindFirstObjectByType<MinigameManager>();
+
+        if (minigameManager != null)
+        {
+            minigameManager.currentMinigame.OnValueChanged += OnMinigameStateChanged;
+            minigameManager.minigameRunning.OnValueChanged += OnMinigameRunningChanged;
+        }
+    }
+
+    void OnDestroy()
+    {
+        if (minigameManager != null)
+        {
+            minigameManager.currentMinigame.OnValueChanged -= OnMinigameStateChanged;
+            minigameManager.minigameRunning.OnValueChanged -= OnMinigameRunningChanged;
+        }
     }
 
     void Update()
     {
+        if (!IsMeltMinigameActive())
+        {
+            StopCrackAudio();
+        }
+
         // Flashlight hasn't hit recently.
         if (Time.time - lastHitTime > hitTimeout)
         {
@@ -89,8 +114,11 @@ public class IceShrinking : NetworkBehaviour
                         return;
                     }
 
-                    // Play one stronger final crack.
-                    PlayRandomCrack();
+                    // Preserve the final crack without overlapping the current clip.
+                    if (finalCrackCoroutine == null && IsMeltMinigameActive())
+                    {
+                        finalCrackCoroutine = StartCoroutine(PlayFinalCrackWhenReady());
+                    }
 
                     playersweeperthing sweeper =
                         FindObjectOfType<playersweeperthing>();
@@ -124,7 +152,9 @@ public class IceShrinking : NetworkBehaviour
         if (
             iceCrackSounds == null ||
             iceCrackSounds.Length == 0 ||
-            audioSource == null
+            audioSource == null ||
+            audioSource.isPlaying ||
+            !IsMeltMinigameActive()
         )
         {
             return;
@@ -169,8 +199,61 @@ public class IceShrinking : NetworkBehaviour
         }
     }
 
+    private System.Collections.IEnumerator PlayFinalCrackWhenReady()
+    {
+        while (IsMeltMinigameActive() && audioSource != null && audioSource.isPlaying)
+        {
+            yield return null;
+        }
+
+        finalCrackCoroutine = null;
+
+        if (IsMeltMinigameActive())
+        {
+            PlayRandomCrack();
+        }
+    }
+
+    private bool IsMeltMinigameActive()
+    {
+        return minigameManager != null &&
+            minigameManager.currentMinigame.Value == 1 &&
+            minigameManager.minigameRunning.Value;
+    }
+
+    private void OnMinigameStateChanged(int previousValue, int newValue)
+    {
+        if (!IsMeltMinigameActive())
+        {
+            StopCrackAudio();
+        }
+    }
+
+    private void OnMinigameRunningChanged(bool previousValue, bool newValue)
+    {
+        if (!IsMeltMinigameActive())
+        {
+            StopCrackAudio();
+        }
+    }
+
+    private void StopCrackAudio()
+    {
+        if (finalCrackCoroutine != null)
+        {
+            StopCoroutine(finalCrackCoroutine);
+            finalCrackCoroutine = null;
+        }
+
+        if (audioSource != null && audioSource.isPlaying)
+        {
+            audioSource.Stop();
+        }
+    }
+
     public void ResetTheSize()
     {
+        StopCrackAudio();
         transform.localScale = originalScale;
 
         isBeingLit = false;
