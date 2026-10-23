@@ -861,6 +861,17 @@ public class MinigameManager : NetworkBehaviour
         StartCoroutine(StartMinigameDelayed());
     }
 
+    [Rpc(SendTo.Everyone)]
+    private void ShowGameCountdownRpc(int seconds)
+    {
+        if (UIManager.Instance != null)
+        {
+            UIManager.Instance.ShowMessageNoTimer(
+                seconds.ToString()
+            );
+        }
+    }
+
     IEnumerator StartMinigameDelayed()
     {
         lastEliminatedCount = 0;
@@ -894,12 +905,25 @@ public class MinigameManager : NetworkBehaviour
             instruction
         );
 
+        
         yield return new WaitForSeconds(GetRoundSequenceDuration());
+
+        // 5-second countdown before the first minigame.
+        CancelUIRpc();
+
+        for (int seconds = 5; seconds >= 1; seconds--)
+        {
+            ShowGameCountdownRpc(seconds);
+            yield return new WaitForSeconds(1f);
+        }
+
+        CancelUIRpc();
 
         ShowActivePlayerMessageRpc(
             "MINIGAME STARTS NOW!",
             startsNowDuration
         );
+
 
         yield return new WaitForSeconds(startsNowDuration);
 
