@@ -895,19 +895,6 @@ public class MinigameManager : NetworkBehaviour
 
         yield return new WaitForSeconds(minigameStartDelay);
 
-        string minigameName = GetMinigameName(selectedMinigame);
-        string playersMessage = GetPlayersRemainingMessage();
-        string instruction = GetInstructionForMinigame(selectedMinigame);
-
-        ShowRoundSequenceRpc(
-            minigameName,
-            playersMessage,
-            instruction
-        );
-
-        
-        yield return new WaitForSeconds(GetRoundSequenceDuration());
-
         // 5-second countdown before the first minigame.
         CancelUIRpc();
 
@@ -924,8 +911,19 @@ public class MinigameManager : NetworkBehaviour
             startsNowDuration
         );
 
-
         yield return new WaitForSeconds(startsNowDuration);
+
+        string minigameName = GetMinigameName(selectedMinigame);
+        string playersMessage = GetPlayersRemainingMessage();
+        string instruction = GetInstructionForMinigame(selectedMinigame);
+
+        ShowRoundSequenceRpc(
+            minigameName,
+            playersMessage,
+            instruction
+        );
+
+        yield return new WaitForSeconds(GetRoundSequenceDuration());
 
         // ORIGINAL object logic starts here.
         currentMinigame.Value = selectedMinigame;
