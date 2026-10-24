@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-public class IceShrinkingTutorial : MonoBehaviour
+public class IceShrinkingTutorial : TutorialFlashlightTarget
 {
     [Header("Shrink Settings")]
     [SerializeField] private float shrinkSpeed = 0.5f;
@@ -41,7 +41,7 @@ public class IceShrinkingTutorial : MonoBehaviour
         }
     }
 
-    public void OnFlashlightHit(TutorialItem flashlightItem)
+    public override void OnFlashlightHit(TutorialItem flashlightItem)
     {
         if (isResetting)
         {

@@ -1,5 +1,10 @@
 using UnityEngine;
 
+public abstract class TutorialFlashlightTarget : MonoBehaviour
+{
+    public abstract void OnFlashlightHit(TutorialItem flashlightItem);
+}
+
 public class FlashlightTutorial : MonoBehaviour
 {
     [Header("Flashlight Settings")]
@@ -83,7 +88,7 @@ public class FlashlightTutorial : MonoBehaviour
 
         if (Physics.Raycast(origin, direction, out RaycastHit hit, range, targetLayers))
         {
-            IceShrinkingTutorial tutorialTarget = hit.collider.GetComponentInChildren<IceShrinkingTutorial>();
+            TutorialFlashlightTarget tutorialTarget = hit.collider.GetComponentInChildren<TutorialFlashlightTarget>();
 
             if (tutorialTarget != null)
             {
