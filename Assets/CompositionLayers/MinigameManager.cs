@@ -61,6 +61,7 @@ public class MinigameManager : NetworkBehaviour
     private NetworkVariable<bool> shouldHideObject = new NetworkVariable<bool>(false);
     public NetworkVariable<bool> minigameRunning = new NetworkVariable<bool>(false);
     public NetworkVariable<int> currentMinigame = new NetworkVariable<int>(0);
+    public float EliminationHeightThreshold => heightThreshold;
 
     private NetworkVariable<bool> isLoadingMinigame = new NetworkVariable<bool>(false);
     private float loadingMinigameDuration = 3f;
@@ -863,33 +864,44 @@ public class MinigameManager : NetworkBehaviour
     void CheckPlayersHeight()
     {
         List<XRINetworkPlayer> allPlayers = GetActiveNetworkPlayers();
-
-        if (allPlayers.Count == 0)
+        List<NPCCompetitor> npcCompetitors = GetActiveNpcCompetitors();
+        int totalCompetitors = allPlayers.Count + npcCompetitors.Count;
+        if (totalCompetitors == 0)
         {
             return;
         }
 
-        int playersAboveThreshold = 0;
+        int eliminatedCompetitors = 0;
 
         foreach (XRINetworkPlayer player in allPlayers)
         {
-            if (player.transform.position.y > heightThreshold)
+            CompetitorMeltTarget meltTarget =
+                player.GetComponent<CompetitorMeltTarget>();
+            if (player.transform.position.y > heightThreshold ||
+                (meltTarget != null && meltTarget.IsEliminated))
             {
-                playersAboveThreshold++;
+                eliminatedCompetitors++;
             }
         }
 
-        int playersRemaining = allPlayers.Count - playersAboveThreshold;
-
-        // Check if players were eliminated in Sword or HotPotato minigames
-        if ((currentMinigame.Value == 2 || currentMinigame.Value == 4) && 
-            playersAboveThreshold > lastEliminatedCount && 
-            playersAboveThreshold > 0)
+        foreach (NPCCompetitor competitor in npcCompetitors)
         {
-            lastEliminatedCount = playersAboveThreshold;
+            if (competitor.IsEliminated)
+            {
+                eliminatedCompetitors++;
+            }
+        }
+
+        int competitorsRemaining = totalCompetitors - eliminatedCompetitors;
+
+        // Check if competitors were eliminated in timed elimination minigames.
+        if ((currentMinigame.Value == 2 || currentMinigame.Value == 4) && 
+            eliminatedCompetitors > lastEliminatedCount &&
+            eliminatedCompetitors > 0)
+        {
+            lastEliminatedCount = eliminatedCompetitors;
         
-            // If there are still multiple players remaining, transition to a new minigame
-            if (playersRemaining > 1 && !isProcessingWin && !isRoundTransitionRunning)
+            if (competitorsRemaining > 1 && !isProcessingWin && !isRoundTransitionRunning)
             {
                 int newMinigame = RollMinigame();
                 StartCoroutine(TransitionToMinigame(newMinigame));
@@ -898,15 +910,15 @@ public class MinigameManager : NetworkBehaviour
         }
 
         // Update eliminated count for other minigames
-        if (playersAboveThreshold > lastEliminatedCount)
+        if (eliminatedCompetitors > lastEliminatedCount)
         {
-            lastEliminatedCount = playersAboveThreshold;
+            lastEliminatedCount = eliminatedCompetitors;
             ShowEliminatedGameOngoingRpc();
         }
 
-        if (allPlayers.Count > 1 &&
-            playersRemaining <= 1 &&
-            playersAboveThreshold > 0 &&
+        if (totalCompetitors > 1 &&
+            competitorsRemaining <= 1 &&
+            eliminatedCompetitors > 0 &&
             !isProcessingWin)
         {
             StartCoroutine(HandleMinigameEnd());
@@ -926,7 +938,10 @@ public class MinigameManager : NetworkBehaviour
         shouldHideObject.Value = true;
 
         CancelUIRpc();
-        ShowRoundResultRpc();
+        ShowRoundResultRpc(
+            CountRemainingHumans() > 0,
+            CountRemainingNpcs() > 0
+        );
 
         // Give the winner and eliminated players time to read their result.
         yield return new WaitForSeconds(5f);
@@ -1062,6 +1077,54 @@ public class MinigameManager : NetworkBehaviour
         }
 
         return count;
+    }
+
+    private List<NPCCompetitor> GetActiveNpcCompetitors()
+    {
+        List<NPCCompetitor> competitors = new();
+        foreach (NPCCompetitor competitor in
+                 FindObjectsByType<NPCCompetitor>(FindObjectsSortMode.None))
+        {
+            if (competitor != null &&
+                competitor.NetworkObject != null &&
+                competitor.NetworkObject.IsSpawned)
+            {
+                competitors.Add(competitor);
+            }
+        }
+
+        return competitors;
+    }
+
+    private int CountRemainingHumans()
+    {
+        int remaining = 0;
+        foreach (XRINetworkPlayer player in GetActiveNetworkPlayers())
+        {
+            CompetitorMeltTarget meltTarget =
+                player.GetComponent<CompetitorMeltTarget>();
+            if (player.transform.position.y <= heightThreshold &&
+                (meltTarget == null || !meltTarget.IsEliminated))
+            {
+                remaining++;
+            }
+        }
+
+        return remaining;
+    }
+
+    private int CountRemainingNpcs()
+    {
+        int remaining = 0;
+        foreach (NPCCompetitor competitor in GetActiveNpcCompetitors())
+        {
+            if (!competitor.IsEliminated)
+            {
+                remaining++;
+            }
+        }
+
+        return remaining;
     }
 
     [Rpc(SendTo.Everyone)]
@@ -1285,10 +1348,23 @@ public class MinigameManager : NetworkBehaviour
     }
 
     [Rpc(SendTo.Everyone)]
-    private void ShowRoundResultRpc()
+    private void ShowRoundResultRpc(bool humanWon, bool npcWon)
     {
         if (UIManager.Instance == null)
         {
+            return;
+        }
+
+        if (npcWon && !humanWon)
+        {
+            UIManager.Instance.ShowMessage("NPC WINS!", 3f);
+            PlayVictorySound();
+            return;
+        }
+
+        if (!humanWon)
+        {
+            UIManager.Instance.ShowMessage("NO WINNER", 3f);
             return;
         }
 
@@ -1387,13 +1463,25 @@ public class MinigameManager : NetworkBehaviour
     private string GetPlayersRemainingMessage()
     {
         List<XRINetworkPlayer> allPlayers = GetActiveNetworkPlayers();
+        List<NPCCompetitor> npcCompetitors = GetActiveNpcCompetitors();
 
-        int totalPlayers = allPlayers.Count;
+        int totalPlayers = allPlayers.Count + npcCompetitors.Count;
         int eliminatedPlayers = 0;
 
         foreach (XRINetworkPlayer player in allPlayers)
         {
-            if (player.transform.position.y > heightThreshold)
+            CompetitorMeltTarget meltTarget =
+                player.GetComponent<CompetitorMeltTarget>();
+            if (player.transform.position.y > heightThreshold ||
+                (meltTarget != null && meltTarget.IsEliminated))
+            {
+                eliminatedPlayers++;
+            }
+        }
+
+        foreach (NPCCompetitor competitor in npcCompetitors)
+        {
+            if (competitor.IsEliminated)
             {
                 eliminatedPlayers++;
             }
