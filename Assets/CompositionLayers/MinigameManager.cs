@@ -931,6 +931,12 @@ public class MinigameManager : NetworkBehaviour
         // Give the winner and eliminated players time to read their result.
         yield return new WaitForSeconds(5f);
 
+        NPCFillManager npcFillManager = GetComponent<NPCFillManager>();
+        if (npcFillManager != null)
+        {
+            npcFillManager.EndMatch();
+        }
+
         CleanupGuns();
         CleanupBombs();
 
@@ -975,6 +981,63 @@ public class MinigameManager : NetworkBehaviour
         shouldHideObject.Value = false;
         minigameRunning.Value = false;
 
+        NPCFillManager npcFillManager = GetComponent<NPCFillManager>();
+        if (npcFillManager != null)
+        {
+            NetworkManager networkManager = NetworkManager.Singleton;
+            bool networkIsListening = networkManager != null && networkManager.IsListening;
+            bool localIsSessionOwner =
+                networkIsListening && networkManager.LocalClient.IsSessionOwner;
+            HashSet<ulong> spawnedHumanClientIds = new();
+            foreach (XRINetworkPlayer player in
+                     FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None))
+            {
+                if (player != null &&
+                    player.gameObject.activeInHierarchy &&
+                    player.NetworkObject != null &&
+                    player.NetworkObject.IsSpawned)
+                {
+                    spawnedHumanClientIds.Add(player.OwnerClientId);
+                }
+            }
+
+            Debug.Log(
+                $"[NPC Fill Diagnostic] StartMatch hook called. " +
+                $"Listening={networkManager != null && networkManager.IsListening}, " +
+                $"Server={networkManager != null && networkManager.IsServer}, " +
+                $"DistributedAuthority={networkManager != null && networkManager.DistributedAuthorityMode}, " +
+                $"SessionOwner={localIsSessionOwner}, " +
+                $"ConnectedClients={(networkIsListening ? networkManager.ConnectedClientsIds.Count : 0)}, " +
+                $"SpawnedHumanPlayers={spawnedHumanClientIds.Count}.",
+                this
+            );
+
+            if (networkManager != null &&
+                networkManager.DistributedAuthorityMode &&
+                !networkManager.IsServer &&
+                !localIsSessionOwner)
+            {
+                Debug.LogWarning(
+                    "[NPC Fill Diagnostic] This client is neither the server nor the " +
+                    "Distributed Authority session owner and cannot spawn NPCs.",
+                    this
+                );
+            }
+
+            npcFillManager.StartMatch();
+            Debug.Log(
+                $"[NPC Fill Diagnostic] Spawned NPCs after hook: {CountSpawnedNpcCompetitors()}.",
+                this
+            );
+        }
+        else
+        {
+            Debug.LogWarning(
+                "[NPC Fill Diagnostic] StartMatch hook ran, but no NPCFillManager is attached.",
+                this
+            );
+        }
+
         CancelUIRpc();
         HideWelcomeRpc();
 
@@ -982,6 +1045,23 @@ public class MinigameManager : NetworkBehaviour
         PlayCalmMusicRpc();
 
         StartCoroutine(StartMinigameDelayed());
+    }
+
+    private static int CountSpawnedNpcCompetitors()
+    {
+        int count = 0;
+        foreach (NPCCompetitor competitor in
+                 FindObjectsByType<NPCCompetitor>(FindObjectsSortMode.None))
+        {
+            if (competitor != null &&
+                competitor.NetworkObject != null &&
+                competitor.NetworkObject.IsSpawned)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     [Rpc(SendTo.Everyone)]

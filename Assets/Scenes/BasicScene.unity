@@ -27274,6 +27274,7 @@ GameObject:
   - component: {fileID: 808082443}
   - component: {fileID: 808082444}
   - component: {fileID: 808082445}
+  - component: {fileID: 808082446}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -27523,6 +27524,30 @@ AudioSource:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+--- !u!114 &808082446
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 808082440}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7c2cc700ef8646e9a79527c611bb95c5, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::NPCFillManager
+  targetCompetitorCount: 4
+  npcPrefab: {fileID: 2378240269360877970, guid: 64e8896a73d7747c982bd9363059d414,
+    type: 3}
+  spawnPoints:
+  - {fileID: 863868684}
+  - {fileID: 1488979103}
+  - {fileID: 1934444168}
+  - {fileID: 210765043}
+  - {fileID: 1306842692}
+  - {fileID: 980564635}
+  - {fileID: 690671879}
+  - {fileID: 1988552308}
 --- !u!1 &809462885
 GameObject:
   m_ObjectHideFlags: 0
@@ -40450,7 +40475,7 @@ Material:
   - MOTIONVECTORS
   - SHADOWCASTER
   - DepthOnly
-  m_LockedProperties: 
+  m_LockedProperties:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:

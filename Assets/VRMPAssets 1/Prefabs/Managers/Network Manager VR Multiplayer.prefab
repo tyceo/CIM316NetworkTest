@@ -88,6 +88,7 @@ MonoBehaviour:
       - {fileID: 11400000, guid: 602d40a0e3e4bd540a7a1070430d0368, type: 2}
       - {fileID: 11400000, guid: 7c6e842cd7704084fa88682fe4e71ae6, type: 2}
       - {fileID: 11400000, guid: a4390c5271cb1294ba726e4409e1ec04, type: 2}
+      - {fileID: 11400000, guid: 6c7a8e275b4274b2f8c22b5b6cfdb7e1, type: 2}
     TickRate: 30
     ClientConnectionBufferTimeout: 10
     ConnectionApproval: 0
@@ -133,7 +134,9 @@ MonoBehaviour:
   ConnectionData:
     Address: 127.0.0.1
     Port: 7777
+    WebSocketPath: /
     ServerListenAddress: 127.0.0.1
+    ClientBindPort: 0
   DebugSimulator:
     PacketDelayMS: 0
     PacketJitterMS: 0
