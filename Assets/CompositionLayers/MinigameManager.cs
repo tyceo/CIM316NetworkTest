@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Locomotion.Teleportation;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using XRMultiplayer;
@@ -73,6 +74,9 @@ public class MinigameManager : NetworkBehaviour
 
     private Vector3 swordOriginalPosition;
     private GameObject swordObject;
+    private XRGrabInteractable swordGrabInteractable;
+    private bool swordWarningShownForPickup;
+    private ulong swordWarningHolderClientId = ulong.MaxValue;
     private Coroutine moveSwordCoroutine = null;
 
     private Vector3[] swordSpawnPositions = new Vector3[]
@@ -381,7 +385,126 @@ public class MinigameManager : NetworkBehaviour
         if (swordObject != null)
         {
             swordOriginalPosition = swordObject.transform.position;
+            swordGrabInteractable = swordObject.GetComponent<XRGrabInteractable>();
+
+            if (swordGrabInteractable != null)
+            {
+                swordGrabInteractable.selectEntered.AddListener(OnSwordGrabbed);
+                swordGrabInteractable.selectExited.AddListener(OnSwordReleased);
+            }
+            else
+            {
+                Debug.LogWarning(
+                    "The Sword object needs an XRGrabInteractable to show pickup messages.",
+                    swordObject
+                );
+            }
         }
+    }
+
+    private void OnDestroy()
+    {
+        if (swordGrabInteractable == null)
+        {
+            return;
+        }
+
+        swordGrabInteractable.selectEntered.RemoveListener(OnSwordGrabbed);
+        swordGrabInteractable.selectExited.RemoveListener(OnSwordReleased);
+    }
+
+    private void OnSwordGrabbed(SelectEnterEventArgs args)
+    {
+        if (!IsSwordMinigameActive())
+        {
+            return;
+        }
+
+        if (IsServer)
+        {
+            HandleSwordPickup(NetworkManager.Singleton.LocalClientId);
+        }
+        else
+        {
+            SwordGrabbedServerRpc();
+        }
+    }
+
+    private void OnSwordReleased(SelectExitEventArgs args)
+    {
+        if (swordGrabInteractable != null && swordGrabInteractable.isSelected)
+        {
+            return;
+        }
+
+        if (IsServer)
+        {
+            HandleSwordRelease(NetworkManager.Singleton.LocalClientId);
+        }
+        else
+        {
+            SwordReleasedServerRpc();
+        }
+    }
+
+    [Rpc(SendTo.Server, RequireOwnership = false)]
+    private void SwordGrabbedServerRpc(RpcParams rpcParams = default)
+    {
+        HandleSwordPickup(rpcParams.Receive.SenderClientId);
+    }
+
+    [Rpc(SendTo.Server, RequireOwnership = false)]
+    private void SwordReleasedServerRpc(RpcParams rpcParams = default)
+    {
+        HandleSwordRelease(rpcParams.Receive.SenderClientId);
+    }
+
+    private bool IsSwordMinigameActive()
+    {
+        return currentMinigame.Value == 2 && minigameRunning.Value;
+    }
+
+    private void HandleSwordPickup(ulong holderClientId)
+    {
+        if (!IsServer ||
+            !IsSwordMinigameActive() ||
+            swordWarningShownForPickup)
+        {
+            return;
+        }
+
+        swordWarningShownForPickup = true;
+        swordWarningHolderClientId = holderClientId;
+        ShowSwordPickupMessageClientRpc(holderClientId);
+    }
+
+    private void HandleSwordRelease(ulong releasingClientId)
+    {
+        if (!IsServer || releasingClientId != swordWarningHolderClientId)
+        {
+            return;
+        }
+
+        swordWarningShownForPickup = false;
+        swordWarningHolderClientId = ulong.MaxValue;
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ShowSwordPickupMessageClientRpc(ulong holderClientId)
+    {
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+        if (localPlayer == null ||
+            localPlayer.transform.position.y > heightThreshold ||
+            UIManager.Instance == null)
+        {
+            return;
+        }
+
+        string message = localPlayer.OwnerClientId == holderClientId
+            ? "YOU HAVE THE SWORD!"
+            : "RUN!";
+
+        UIManager.Instance.ShowMessage(message, 2f);
     }
 
     void UpdateIceCubes()
