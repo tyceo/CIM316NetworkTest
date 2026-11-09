@@ -276,6 +276,7 @@ public static class NPCCompetitorPrefabSetup
 
     private static void OrientAndScaleModel(GameObject model)
     {
+        Vector3 importedScale = model.transform.localScale;
         model.transform.localPosition = Vector3.zero;
         model.transform.localRotation = Quaternion.identity;
 
@@ -303,7 +304,7 @@ public static class NPCCompetitorPrefabSetup
 
         bounds = GetRenderBounds(model);
         float uniformScale = CharacterHeight / Mathf.Max(bounds.size.y, 0.01f);
-        model.transform.localScale = Vector3.one * uniformScale;
+        model.transform.localScale = importedScale * uniformScale;
         model.transform.localPosition = Vector3.up * (-bounds.min.y * uniformScale);
     }
 
@@ -342,12 +343,24 @@ public static class NPCCompetitorPrefabSetup
                     return changed;
                 }
 
-                OrientAndScaleModel(instance);
                 existingModel = instance.transform;
                 changed = true;
             }
 
             models[i] = existingModel.gameObject;
+            Vector3 previousPosition = existingModel.localPosition;
+            Quaternion previousRotation = existingModel.localRotation;
+            Vector3 previousScale = existingModel.localScale;
+            existingModel.gameObject.SetActive(true);
+            existingModel.localScale = modelPrefab.transform.localScale;
+            OrientAndScaleModel(models[i]);
+            if (previousPosition != existingModel.localPosition ||
+                Quaternion.Angle(previousRotation, existingModel.localRotation) > 0.001f ||
+                previousScale != existingModel.localScale)
+            {
+                changed = true;
+            }
+
             bool shouldBeActive = i == 0;
             if (models[i].activeSelf != shouldBeActive)
             {
