@@ -42,9 +42,15 @@ public class NPCCompetitorAI : NetworkBehaviour
         minigameManager = FindFirstObjectByType<MinigameManager>();
         arenaOrigin = transform.position;
 
-        if (!HasAuthority())
+        if (!HasNpcAuthority())
         {
             agent.enabled = false;
+            return;
+        }
+
+        if (competitor != null && competitor.IsEliminated)
+        {
+            StopForElimination();
             return;
         }
 
@@ -56,7 +62,7 @@ public class NPCCompetitorAI : NetworkBehaviour
 
     private void Update()
     {
-        if (!HasAuthority() || agent == null || !agent.enabled)
+        if (!HasNpcAuthority() || agent == null || !agent.enabled)
         {
             return;
         }
@@ -116,6 +122,24 @@ public class NPCCompetitorAI : NetworkBehaviour
                 break;
 
             case 4:
+                Bomb bomb = FindFirstObjectByType<Bomb>();
+                bool holdsBomb = bomb != null &&
+                                 competitor != null &&
+                                 bomb.IsHeldBy(competitor);
+                if (!holdsBomb)
+                {
+                    target = null;
+                    targetMelt = null;
+                    state = State.Roaming;
+                    agent.stoppingDistance = attackRange * 0.8f;
+                    Roam();
+                    break;
+                }
+
+                agent.stoppingDistance = Mathf.Min(
+                    attackRange * 0.5f,
+                    bomb.TransferDistance * 0.5f
+                );
                 state = target != null ? State.Chasing : State.Roaming;
                 if (state == State.Chasing)
                 {
@@ -146,6 +170,7 @@ public class NPCCompetitorAI : NetworkBehaviour
                  FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None))
         {
             if (player == null || !player.gameObject.activeInHierarchy ||
+                player.NetworkObject == null || !player.NetworkObject.IsSpawned ||
                 player.transform.position.y > GetEliminationHeightThreshold())
             {
                 continue;
@@ -338,20 +363,31 @@ public class NPCCompetitorAI : NetworkBehaviour
 
     private void StopMoving()
     {
-        if (agent.enabled && agent.isOnNavMesh)
+        if (agent != null)
         {
-            agent.ResetPath();
+            if (agent.enabled && agent.isOnNavMesh)
+            {
+                agent.ResetPath();
+            }
+
+            agent.enabled = false;
         }
 
-        agent.enabled = false;
-        Collider bodyCollider = GetComponent<Collider>();
-        if (bodyCollider != null)
+        foreach (Collider bodyCollider in GetComponentsInChildren<Collider>(true))
         {
             bodyCollider.enabled = false;
         }
     }
 
-    private bool HasAuthority()
+    public void StopForElimination()
+    {
+        state = State.Eliminated;
+        target = null;
+        targetMelt = null;
+        StopMoving();
+    }
+
+    private bool HasNpcAuthority()
     {
         return IsServer ||
                (NetworkManager != null &&

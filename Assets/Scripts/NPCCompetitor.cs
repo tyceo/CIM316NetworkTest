@@ -18,6 +18,22 @@ public class NPCCompetitor : NetworkBehaviour
     public int CompetitorIndex => competitorIndex.Value;
     public bool IsEliminated => isEliminated.Value;
 
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        isEliminated.OnValueChanged += OnEliminatedChanged;
+        if (isEliminated.Value)
+        {
+            StopNpcForElimination();
+        }
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        isEliminated.OnValueChanged -= OnEliminatedChanged;
+        base.OnNetworkDespawn();
+    }
+
     public void InitializeCompetitor(int index)
     {
         if (!HasStateWriteAuthority())
@@ -47,11 +63,29 @@ public class NPCCompetitor : NetworkBehaviour
         isEliminated.Value = true;
     }
 
+    private void OnEliminatedChanged(bool previousValue, bool newValue)
+    {
+        if (newValue)
+        {
+            StopNpcForElimination();
+        }
+    }
+
+    private void StopNpcForElimination()
+    {
+        NPCCompetitorAI ai = GetComponent<NPCCompetitorAI>();
+        if (ai != null)
+        {
+            ai.StopForElimination();
+        }
+    }
+
     private bool HasStateWriteAuthority()
     {
-        return IsServer ||
-               (NetworkManager != null &&
-                NetworkManager.DistributedAuthorityMode &&
-                IsSessionOwner);
+        return NetworkManager != null
+            ? NetworkManager.DistributedAuthorityMode
+                ? IsOwner
+                : IsServer
+            : IsServer;
     }
 }

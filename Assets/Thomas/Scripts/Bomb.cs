@@ -1,14 +1,16 @@
-using UnityEngine;
-using Unity.Netcode;
-using XRMultiplayer;
 using System.Collections;
+using System.Collections.Generic;
+using Unity.Netcode;
+using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit.Locomotion.Teleportation;
+using XRMultiplayer;
 
 public class Bomb : NetworkBehaviour
 {
     [Header("Bomb Settings")]
     [SerializeField] private float explosionTimer = 5f;
-    [SerializeField] private float transferDistance = 5f;
+    [SerializeField, Min(0.1f)] private float transferDistance = 5f;
+    [SerializeField, Min(0f)] private float transferCooldown = 1f;
     [SerializeField] private Transform[] spawnLocations = new Transform[8];
 
     [Header("Bomb Audio")]
@@ -23,43 +25,54 @@ public class Bomb : NetworkBehaviour
 
     [SerializeField] private AudioSource audioSource;
 
-    private NetworkVariable<ulong> currentPlayerClientId =
-        new NetworkVariable<ulong>(
-            ulong.MaxValue,
+    private readonly NetworkVariable<NetworkObjectReference> currentHolder =
+        new(
+            default,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Owner
         );
 
-    private NetworkVariable<float> remainingTime =
-        new NetworkVariable<float>(
+    private readonly NetworkVariable<float> remainingTime =
+        new(
             0f,
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Owner
         );
 
-    private bool hasExploded = false;
-    private bool initialized = false;
+    private readonly NetworkVariable<bool> isInitialized =
+        new(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Owner
+        );
+
+    private readonly NetworkVariable<bool> isExploded =
+        new(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Owner
+        );
+    private bool explosionVisualActivated;
     private GameObject poleObject;
-
-    private float lastTransferTime = 0f;
-    private float transferCooldown = 1f;
-
+    private MinigameManager minigameManager;
+    private float lastTransferTime;
+    private float despawnAt = -1f;
     private int lastTickSecond = -1;
 
-    void Start()
+    public float TransferDistance => transferDistance;
+
+    private void Start()
     {
         poleObject = transform.Find("Bad")?.gameObject;
-
         if (poleObject == null)
         {
-            Debug.LogWarning("Bomb: Could not find 'Bad' child object!");
+            Debug.LogWarning("Bomb: Could not find 'Bad' child object!", this);
         }
         else
         {
             poleObject.SetActive(false);
         }
 
-        // Automatically make an AudioSource if one isn't assigned.
         if (audioSource == null)
         {
             audioSource = GetComponent<AudioSource>();
@@ -71,27 +84,28 @@ public class Bomb : NetworkBehaviour
         }
 
         audioSource.playOnAwake = false;
-
-        // 3D audio so the ticking comes from the bomb.
         audioSource.spatialBlend = 1f;
     }
 
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
-
-        currentPlayerClientId.OnValueChanged += OnPlayerChanged;
+        minigameManager = FindFirstObjectByType<MinigameManager>();
+        currentHolder.OnValueChanged += OnHolderChanged;
         remainingTime.OnValueChanged += OnTimeChanged;
 
-        if (IsOwner)
-        {
-            StartCoroutine(InitializeBomb());
-        }
+        StartAuthoritySimulation();
+    }
+
+    public override void OnGainedOwnership()
+    {
+        base.OnGainedOwnership();
+        StartAuthoritySimulation();
     }
 
     public override void OnNetworkDespawn()
     {
-        currentPlayerClientId.OnValueChanged -= OnPlayerChanged;
+        currentHolder.OnValueChanged -= OnHolderChanged;
         remainingTime.OnValueChanged -= OnTimeChanged;
 
         if (BombCountdownUI.Instance != null)
@@ -102,241 +116,370 @@ public class Bomb : NetworkBehaviour
         base.OnNetworkDespawn();
     }
 
-    IEnumerator InitializeBomb()
+    private IEnumerator InitializeBomb()
     {
         yield return new WaitForSeconds(0.5f);
 
-        XRINetworkPlayer[] allPlayers =
-            FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None);
-
-        if (allPlayers.Length > 0)
+        float waitRemaining = 5f;
+        while (IsOwner && !isExploded.Value && !isInitialized.Value && waitRemaining > 0f)
         {
-            int randomIndex = Random.Range(0, allPlayers.Length);
-            ulong randomPlayerId = allPlayers[randomIndex].OwnerClientId;
-
-            currentPlayerClientId.Value = randomPlayerId;
-            remainingTime.Value = explosionTimer;
-
-            lastTickSecond = Mathf.CeilToInt(explosionTimer);
-
-            if (BombCountdownUI.Instance != null)
+            if (!IsHotPotatoActive())
             {
-                BombCountdownUI.Instance.ShowCountdown(lastTickSecond);
+                yield break;
             }
 
-            initialized = true;
+            List<NetworkObject> competitors = GetActiveCompetitors();
+            if (competitors.Count > 0)
+            {
+                NetworkObject initialHolder =
+                    competitors[Random.Range(0, competitors.Count)];
+                currentHolder.Value = new NetworkObjectReference(initialHolder);
+                remainingTime.Value = Mathf.Max(0f, explosionTimer);
+                isInitialized.Value = true;
+                lastTransferTime = Time.time;
+                lastTickSecond = Mathf.CeilToInt(explosionTimer);
 
-            Debug.Log(
-                $"Bomb initialized! Assigned to player: {randomPlayerId}"
-            );
+                Debug.Log(
+                    $"Bomb initialized! Assigned to {DescribeCompetitor(initialHolder)}.",
+                    this
+                );
+                yield break;
+            }
+
+            yield return new WaitForSeconds(0.25f);
+            waitRemaining -= 0.25f;
         }
-        else
+
+        if (IsOwner && !isInitialized.Value)
         {
-            Debug.LogError("NO PLAYERS FOUND! Bomb cannot initialize!");
+            Debug.LogError(
+                "Bomb could not find an active human or NPC competitor to hold it.",
+                this
+            );
         }
     }
 
-    void Update()
+    private void Update()
     {
+        if (IsOwner && isExploded.Value)
+        {
+            if (despawnAt < 0f)
+            {
+                despawnAt = Time.time;
+            }
+
+            if (despawnAt >= 0f && Time.time >= despawnAt)
+            {
+                DespawnBomb();
+            }
+
+            return;
+        }
+
         if (IsOwner)
         {
-            if (!initialized || hasExploded)
+            if (!isInitialized.Value || !IsHotPotatoActive())
             {
                 return;
             }
 
-            remainingTime.Value -= Time.deltaTime;
+            if (!TryGetCurrentHolder(out NetworkObject holder) ||
+                !IsEligibleCompetitor(holder))
+            {
+                if (!TryAssignRandomHolder())
+                {
+                    remainingTime.Value = Mathf.Max(
+                        0f,
+                        remainingTime.Value - Time.deltaTime
+                    );
+                    if (remainingTime.Value <= 0f)
+                    {
+                        ExplodeBomb();
+                    }
+
+                    return;
+                }
+
+                lastTransferTime = Time.time;
+                return;
+            }
+
+            remainingTime.Value = Mathf.Max(
+                0f,
+                remainingTime.Value - Time.deltaTime
+            );
 
             if (remainingTime.Value <= 0f)
             {
-                Debug.Log("BOMB EXPLODING!");
                 ExplodeBomb();
                 return;
             }
 
-            if (currentPlayerClientId.Value != ulong.MaxValue)
-            {
-                CheckForTransfer();
-            }
-        }
-
-        if (currentPlayerClientId.Value != ulong.MaxValue)
-        {
-            UpdateBombPosition();
+            CheckForTransfer(holder);
+            UpdateBombPosition(holder);
         }
     }
 
-    void UpdateBombPosition()
+    public bool IsHeldBy(NPCCompetitor competitor)
     {
-        XRINetworkPlayer player =
-            GetPlayerById(currentPlayerClientId.Value);
+        return competitor != null &&
+               competitor.NetworkObject != null &&
+               IsHolding(competitor.NetworkObject);
+    }
 
+    public bool IsHolding(NetworkObject competitor)
+    {
+        return competitor != null &&
+               TryGetCurrentHolder(out NetworkObject holder) &&
+               holder == competitor;
+    }
+
+    public bool IsOwnedByClient(ulong clientId)
+    {
+        return NetworkObject != null &&
+               NetworkObject.OwnerClientId == clientId;
+    }
+
+    public bool HasBombAuthority => IsOwner;
+
+    private bool IsHotPotatoActive()
+    {
+        if (minigameManager == null)
+        {
+            minigameManager = FindFirstObjectByType<MinigameManager>();
+        }
+
+        return minigameManager != null &&
+               minigameManager.currentMinigame.Value == 4 &&
+               minigameManager.minigameRunning.Value;
+    }
+
+    private bool TryGetCurrentHolder(out NetworkObject holder)
+    {
+        return currentHolder.Value.TryGet(out holder) &&
+               holder != null &&
+               holder.IsSpawned;
+    }
+
+    private bool TryAssignRandomHolder()
+    {
+        List<NetworkObject> competitors = GetActiveCompetitors();
+        if (competitors.Count == 0)
+        {
+            currentHolder.Value = default;
+            return false;
+        }
+
+        NetworkObject newHolder = competitors[Random.Range(0, competitors.Count)];
+        currentHolder.Value = new NetworkObjectReference(newHolder);
+        Debug.Log($"Bomb reassigned to {DescribeCompetitor(newHolder)}.", this);
+        return true;
+    }
+
+    private List<NetworkObject> GetActiveCompetitors()
+    {
+        List<NetworkObject> competitors = new();
+
+        foreach (XRINetworkPlayer player in
+                 FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None))
+        {
+            if (player != null &&
+                player.NetworkObject != null &&
+                IsEligibleCompetitor(player.NetworkObject))
+            {
+                competitors.Add(player.NetworkObject);
+            }
+        }
+
+        foreach (NPCCompetitor competitor in
+                 FindObjectsByType<NPCCompetitor>(FindObjectsSortMode.None))
+        {
+            if (competitor != null &&
+                competitor.NetworkObject != null &&
+                IsEligibleCompetitor(competitor.NetworkObject))
+            {
+                competitors.Add(competitor.NetworkObject);
+            }
+        }
+
+        return competitors;
+    }
+
+    private bool IsEligibleCompetitor(NetworkObject competitor)
+    {
+        if (competitor == null ||
+            !competitor.IsSpawned ||
+            !competitor.gameObject.activeInHierarchy)
+        {
+            return false;
+        }
+
+        XRINetworkPlayer player = competitor.GetComponent<XRINetworkPlayer>();
         if (player != null)
         {
-            Transform attachPoint = player.head;
-
-            if (attachPoint == null)
-            {
-                attachPoint = player.transform;
-            }
-
-            Vector3 targetPosition =
-                attachPoint.position + Vector3.up * 0.5f;
-
-            transform.position = targetPosition;
-            transform.rotation = Quaternion.identity;
+            CompetitorMeltTarget eliminationState =
+                player.GetComponent<CompetitorMeltTarget>();
+            return (eliminationState == null || !eliminationState.IsEliminated) &&
+                   (minigameManager == null ||
+                    player.transform.position.y <=
+                    minigameManager.EliminationHeightThreshold);
         }
+
+        NPCCompetitor npc = competitor.GetComponent<NPCCompetitor>();
+        if (npc == null || npc.IsEliminated)
+        {
+            return false;
+        }
+
+        CompetitorMeltTarget npcEliminationState =
+            npc.GetComponent<CompetitorMeltTarget>();
+        return npcEliminationState == null || !npcEliminationState.IsEliminated;
     }
 
-    void CheckForTransfer()
+    private void CheckForTransfer(NetworkObject holder)
     {
         if (Time.time - lastTransferTime < transferCooldown)
         {
             return;
         }
 
-        XRINetworkPlayer currentPlayer =
-            GetPlayerById(currentPlayerClientId.Value);
+        Vector3 holderPosition = GetCompetitorPosition(holder);
+        NetworkObject nearestCompetitor = null;
+        float nearestDistanceSquared = transferDistance * transferDistance;
 
-        if (currentPlayer == null)
+        foreach (NetworkObject competitor in GetActiveCompetitors())
         {
-            return;
-        }
-
-        XRINetworkPlayer[] allPlayers =
-            FindObjectsByType<XRINetworkPlayer>(
-                FindObjectsSortMode.None
-            );
-
-        foreach (XRINetworkPlayer player in allPlayers)
-        {
-            if (player.OwnerClientId ==
-                currentPlayerClientId.Value)
+            if (competitor == holder)
             {
                 continue;
             }
 
-            float distance = Vector3.Distance(
-                currentPlayer.transform.position,
-                player.transform.position
-            );
-
-            if (distance <= transferDistance)
+            float distanceSquared =
+                GetDistanceToCompetitorSquared(holderPosition, competitor);
+            if (distanceSquared <= nearestDistanceSquared)
             {
-                Debug.Log(
-                    $"Transferring bomb from player " +
-                    $"{currentPlayerClientId.Value} " +
-                    $"to {player.OwnerClientId}"
-                );
-
-                ulong previousPlayerId =
-                    currentPlayerClientId.Value;
-
-                currentPlayerClientId.Value =
-                    player.OwnerClientId;
-
-                lastTransferTime = Time.time;
-
-                TeleportPlayerToSpawn(previousPlayerId);
-
-                return;
+                nearestDistanceSquared = distanceSquared;
+                nearestCompetitor = competitor;
             }
         }
-    }
 
-    void TeleportPlayerToSpawn(ulong playerId)
-    {
-        if (spawnLocations.Length == 0)
+        if (nearestCompetitor == null)
         {
-            Debug.LogWarning(
-                "No spawn locations assigned for bomb teleportation!"
-            );
-
             return;
         }
 
-        int randomSpawnIndex =
-            Random.Range(0, spawnLocations.Length);
+        currentHolder.Value = new NetworkObjectReference(nearestCompetitor);
+        lastTransferTime = Time.time;
 
-        Transform spawnLocation =
-            spawnLocations[randomSpawnIndex];
-
-        if (spawnLocation == null)
-        {
-            Debug.LogWarning("Spawn location is null!");
-            return;
-        }
-
-        TeleportPlayerRpc(
-            playerId,
-            spawnLocation.position,
-            spawnLocation.rotation
+        Debug.Log(
+            $"Bomb transferred: {DescribeCompetitor(holder)} -> " +
+            $"{DescribeCompetitor(nearestCompetitor)}",
+            this
         );
+
+        if (holder.TryGetComponent(out XRINetworkPlayer previousPlayer) &&
+            nearestCompetitor.TryGetComponent<XRINetworkPlayer>(out _))
+        {
+            TeleportPlayerToSpawn(previousPlayer.OwnerClientId);
+        }
     }
 
-    [Rpc(SendTo.Everyone)]
-    void TeleportPlayerRpc(
-        ulong playerClientId,
-        Vector3 position,
-        Quaternion rotation
-    )
+    private static Vector3 GetCompetitorPosition(NetworkObject competitor)
     {
-        if (
-            XRINetworkPlayer.LocalPlayer != null &&
-            XRINetworkPlayer.LocalPlayer.OwnerClientId ==
-            playerClientId
-        )
+        XRINetworkPlayer player = competitor.GetComponent<XRINetworkPlayer>();
+        if (player != null && player.head != null)
         {
-            TeleportationProvider teleportationProvider =
-                FindAnyObjectByType<TeleportationProvider>();
+            return player.head.position;
+        }
 
-            if (teleportationProvider != null)
+        return competitor.transform.position;
+    }
+
+    private static float GetDistanceToCompetitorSquared(
+        Vector3 sourcePosition,
+        NetworkObject competitor)
+    {
+        float nearestDistanceSquared = float.PositiveInfinity;
+        bool foundCollider = false;
+
+        foreach (Collider collider in competitor.GetComponentsInChildren<Collider>())
+        {
+            if (collider == null || !collider.enabled || !collider.gameObject.activeInHierarchy)
             {
-                TeleportRequest teleportRequest =
-                    new TeleportRequest
-                    {
-                        destinationPosition = position,
-                        destinationRotation = rotation
-                    };
+                continue;
+            }
 
-                teleportationProvider.QueueTeleportRequest(
-                    teleportRequest
-                );
+            Vector3 closestPoint = collider.ClosestPoint(sourcePosition);
+            float distanceSquared = (closestPoint - sourcePosition).sqrMagnitude;
+            nearestDistanceSquared = Mathf.Min(nearestDistanceSquared, distanceSquared);
+            foundCollider = true;
+        }
 
-                Debug.Log(
-                    $"Player {playerClientId} teleported " +
-                    "to spawn after transferring bomb"
+        return foundCollider
+            ? nearestDistanceSquared
+            : (competitor.transform.position - sourcePosition).sqrMagnitude;
+    }
+
+    private void UpdateBombPosition(NetworkObject holder)
+    {
+        Transform holderTransform = holder.transform;
+        XRINetworkPlayer player = holder.GetComponent<XRINetworkPlayer>();
+        NPCCompetitor npc = holder.GetComponent<NPCCompetitor>();
+
+        if (player != null && player.head != null)
+        {
+            holderTransform = player.head;
+            transform.position = holderTransform.position + Vector3.up * 0.5f;
+        }
+        else if (npc != null)
+        {
+            transform.position = holderTransform.position + Vector3.up * 1.05f;
+        }
+        else
+        {
+            transform.position = holderTransform.position + Vector3.up * 0.5f;
+        }
+
+        transform.rotation = Quaternion.identity;
+    }
+
+    private void ExplodeBomb()
+    {
+        if (isExploded.Value || !IsOwner)
+        {
+            return;
+        }
+
+        isExploded.Value = true;
+
+        if (TryGetCurrentHolder(out NetworkObject holder) &&
+            IsEligibleCompetitor(holder))
+        {
+            CompetitorMeltTarget eliminationState =
+                holder.GetComponent<CompetitorMeltTarget>();
+
+            if (eliminationState == null)
+            {
+                Debug.LogError(
+                    $"Cannot eliminate {DescribeCompetitor(holder)}: " +
+                    "CompetitorMeltTarget is missing.",
+                    this
                 );
             }
             else
             {
-                Debug.LogError(
-                    "TeleportationProvider not found!"
-                );
+                eliminationState.EliminateByHotPotato(this);
             }
         }
-    }
-
-    void ExplodeBomb()
-    {
-        if (hasExploded)
+        else
         {
-            return;
+            Debug.LogWarning(
+                "Bomb expired without an active competitor holding it.",
+                this
+            );
         }
 
-        hasExploded = true;
-
-        Debug.Log(
-            $"Bomb exploding on player " +
-            $"{currentPlayerClientId.Value}"
-        );
-
-        StartCoroutine(ExplodeSequence());
-    }
-
-    IEnumerator ExplodeSequence()
-    {
-        // Explosion visual + sound on everyone.
+        Debug.Log("BOMB EXPLODING!", this);
         ActivateExplosionRpc();
 
         if (BombCountdownUI.Instance != null)
@@ -344,36 +487,57 @@ public class Bomb : NetworkBehaviour
             BombCountdownUI.Instance.HideCountdown();
         }
 
-        yield return new WaitForSeconds(1f);
+        despawnAt = Time.time + 1f;
+    }
 
-        if (IsOwner)
+    private void StartAuthoritySimulation()
+    {
+        if (!IsOwner)
         {
-            NetworkObject networkObject =
-                GetComponent<NetworkObject>();
-
-            if (
-                networkObject != null &&
-                networkObject.IsSpawned
-            )
-            {
-                networkObject.Despawn();
-            }
-
-            Destroy(gameObject);
+            return;
         }
+
+        if (isExploded.Value)
+        {
+            despawnAt = Time.time;
+            return;
+        }
+
+        if (isInitialized.Value)
+        {
+            return;
+        }
+
+        StartCoroutine(InitializeBomb());
+    }
+
+    private void DespawnBomb()
+    {
+        despawnAt = -1f;
+        NetworkObject networkObject = GetComponent<NetworkObject>();
+        if (networkObject != null && networkObject.IsSpawned)
+        {
+            networkObject.Despawn();
+        }
+
+        Destroy(gameObject);
     }
 
     [Rpc(SendTo.Everyone)]
-    void ActivateExplosionRpc()
+    private void ActivateExplosionRpc()
     {
+        if (explosionVisualActivated)
+        {
+            return;
+        }
+
+        explosionVisualActivated = true;
         if (poleObject != null)
         {
             poleObject.SetActive(true);
-            Debug.Log("Bomb explosion activated!");
+            Debug.Log("Bomb explosion activated!", this);
         }
 
-        // PlayClipAtPoint creates a temporary audio object,
-        // so the explosion won't suddenly stop when the bomb is destroyed.
         if (explosionSound != null)
         {
             AudioSource.PlayClipAtPoint(
@@ -384,69 +548,46 @@ public class Bomb : NetworkBehaviour
         }
     }
 
-    void OnPlayerChanged(
-        ulong previousValue,
-        ulong newValue
-    )
+    private void OnHolderChanged(
+        NetworkObjectReference previousValue,
+        NetworkObjectReference newValue)
     {
-        Debug.Log(
-            $"Bomb transferred: {previousValue} -> {newValue}"
-        );
-
-        if (XRINetworkPlayer.LocalPlayer == null ||
-            UIManager.Instance == null)
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+        if (localPlayer == null || UIManager.Instance == null)
         {
             return;
         }
 
-        ulong localPlayerId =
-            XRINetworkPlayer.LocalPlayer.OwnerClientId;
-
-        // The player who just got the bomb.
-        if (localPlayerId == newValue)
+        if (previousValue.TryGet(out NetworkObject previousObject) &&
+            previousObject != null &&
+            previousObject.TryGetComponent(out XRINetworkPlayer previousPlayer) &&
+            previousPlayer.NetworkObject == localPlayer.NetworkObject)
         {
-            UIManager.Instance.ShowMessage(
-                "YOU HAVE THE BOMB!",
-                1.5f
-            );
+            UIManager.Instance.ShowMessage("YOU PASSED THE BOMB!", 1.5f);
         }
-        // The player who successfully passed it.
-        else if (
-            previousValue != ulong.MaxValue &&
-            localPlayerId == previousValue)
+
+        if (newValue.TryGet(out NetworkObject newObject) &&
+            newObject != null &&
+            newObject.TryGetComponent(out XRINetworkPlayer newPlayer) &&
+            newPlayer.NetworkObject == localPlayer.NetworkObject)
         {
-            UIManager.Instance.ShowMessage(
-                "YOU PASSED THE BOMB!",
-                1.5f
-            );
+            UIManager.Instance.ShowMessage("YOU HAVE THE BOMB!", 1.5f);
         }
     }
 
-    void OnTimeChanged(
-        float previousValue,
-        float newValue
-    )
+    private void OnTimeChanged(float previousValue, float newValue)
     {
         int newSecond = Mathf.CeilToInt(newValue);
-
-        // Play one tick every second.
-        if (
-            newSecond > 0 &&
-            newSecond != lastTickSecond
-        )
+        if (newSecond > 0 && newSecond != lastTickSecond)
         {
             lastTickSecond = newSecond;
-
             if (BombCountdownUI.Instance != null)
             {
                 BombCountdownUI.Instance.ShowCountdown(newSecond);
             }
 
             PlayTick();
-
-            Debug.Log(
-                $"Bomb timer: {newSecond} seconds"
-            );
+            Debug.Log($"Bomb timer: {newSecond} seconds", this);
         }
 
         if (newValue <= 0f && BombCountdownUI.Instance != null)
@@ -455,43 +596,97 @@ public class Bomb : NetworkBehaviour
         }
     }
 
-    void PlayTick()
+    private void PlayTick()
     {
         if (tickSound == null || audioSource == null)
         {
             return;
         }
 
-        // Tick gets slightly higher pitched as time runs out.
-        float timePercent =
-            Mathf.Clamp01(
-                remainingTime.Value / explosionTimer
-            );
-
-        audioSource.pitch =
-            Mathf.Lerp(1.5f, 1f, timePercent);
-
-        audioSource.PlayOneShot(
-            tickSound,
-            tickVolume
-        );
+        float timePercent = explosionTimer > 0f
+            ? Mathf.Clamp01(remainingTime.Value / explosionTimer)
+            : 0f;
+        audioSource.pitch = Mathf.Lerp(1.5f, 1f, timePercent);
+        audioSource.PlayOneShot(tickSound, tickVolume);
     }
 
-    XRINetworkPlayer GetPlayerById(ulong playerId)
+    private void TeleportPlayerToSpawn(ulong playerId)
     {
-        XRINetworkPlayer[] allPlayers =
-            FindObjectsByType<XRINetworkPlayer>(
-                FindObjectsSortMode.None
-            );
-
-        foreach (XRINetworkPlayer player in allPlayers)
+        if (spawnLocations == null || spawnLocations.Length == 0)
         {
-            if (player.OwnerClientId == playerId)
+            Debug.LogWarning(
+                "No spawn locations assigned for bomb teleportation!",
+                this
+            );
+            return;
+        }
+
+        List<Transform> availableSpawns = new();
+        foreach (Transform spawnLocation in spawnLocations)
+        {
+            if (spawnLocation != null)
             {
-                return player;
+                availableSpawns.Add(spawnLocation);
             }
         }
 
-        return null;
+        if (availableSpawns.Count == 0)
+        {
+            Debug.LogWarning("All bomb spawn locations are null.", this);
+            return;
+        }
+
+        Transform selectedSpawn =
+            availableSpawns[Random.Range(0, availableSpawns.Count)];
+        TeleportPlayerRpc(
+            playerId,
+            selectedSpawn.position,
+            selectedSpawn.rotation
+        );
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void TeleportPlayerRpc(
+        ulong playerClientId,
+        Vector3 position,
+        Quaternion rotation)
+    {
+        if (XRINetworkPlayer.LocalPlayer == null ||
+            XRINetworkPlayer.LocalPlayer.OwnerClientId != playerClientId)
+        {
+            return;
+        }
+
+        TeleportationProvider teleportationProvider =
+            FindAnyObjectByType<TeleportationProvider>();
+        if (teleportationProvider == null)
+        {
+            Debug.LogError("TeleportationProvider not found!", this);
+            return;
+        }
+
+        TeleportRequest teleportRequest = new()
+        {
+            destinationPosition = position,
+            destinationRotation = rotation
+        };
+        teleportationProvider.QueueTeleportRequest(teleportRequest);
+        Debug.Log(
+            $"Player {playerClientId} teleported to spawn after transferring the bomb.",
+            this
+        );
+    }
+
+    private static string DescribeCompetitor(NetworkObject competitor)
+    {
+        if (competitor == null)
+        {
+            return "a missing competitor";
+        }
+
+        NPCCompetitor npc = competitor.GetComponent<NPCCompetitor>();
+        return npc != null
+            ? $"NPC competitor {npc.CompetitorIndex}"
+            : $"player {competitor.OwnerClientId}";
     }
 }

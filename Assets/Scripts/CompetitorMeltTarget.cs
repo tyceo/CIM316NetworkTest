@@ -134,6 +134,59 @@ public class CompetitorMeltTarget : NetworkBehaviour
         }
     }
 
+    public void EliminateByHotPotato(Bomb bomb)
+    {
+        if (bomb == null ||
+            !bomb.HasBombAuthority ||
+            !bomb.IsHolding(NetworkObject))
+        {
+            Debug.LogError(
+                "HOT POTATO elimination requires the authoritative bomb and its current holder.",
+                this
+            );
+            return;
+        }
+
+        if (!IsHotPotatoRound() || eliminated.Value)
+        {
+            return;
+        }
+
+        NPCCompetitor npc = GetComponent<NPCCompetitor>();
+        if (npc != null && npc.IsEliminated)
+        {
+            return;
+        }
+
+        if (HasEliminationWriteAuthority())
+        {
+            EliminateCompetitor();
+            return;
+        }
+
+        EliminateByHotPotatoAuthorityRpc(
+            new NetworkObjectReference(bomb.NetworkObject)
+        );
+    }
+
+    [Rpc(SendTo.Authority, InvokePermission = RpcInvokePermission.Everyone)]
+    private void EliminateByHotPotatoAuthorityRpc(
+        NetworkObjectReference bombReference,
+        RpcParams rpcParams = default)
+    {
+        if (!HasEliminationWriteAuthority() ||
+            !IsHotPotatoCompetitorActive() ||
+            !bombReference.TryGet(out NetworkObject bombObject) ||
+            !bombObject.TryGetComponent(out Bomb bomb) ||
+            !bomb.IsOwnedByClient(rpcParams.Receive.SenderClientId) ||
+            !bomb.IsHolding(NetworkObject))
+        {
+            return;
+        }
+
+        EliminateCompetitor();
+    }
+
     private void OnIceIntegrityChanged(float previousValue, float newValue)
     {
         RefreshIceVisual();
@@ -190,6 +243,35 @@ public class CompetitorMeltTarget : NetworkBehaviour
         return minigameManager != null &&
                minigameManager.currentMinigame.Value == 1 &&
                minigameManager.minigameRunning.Value;
+    }
+
+    private bool IsHotPotatoRound()
+    {
+        return minigameManager != null &&
+               minigameManager.currentMinigame.Value == 4 &&
+               minigameManager.minigameRunning.Value;
+    }
+
+    private bool IsHotPotatoCompetitorActive()
+    {
+        if (!IsHotPotatoRound() ||
+            eliminated.Value ||
+            NetworkObject == null ||
+            !NetworkObject.IsSpawned ||
+            !gameObject.activeInHierarchy ||
+            !IsWithinArenaHeight())
+        {
+            return false;
+        }
+
+        NPCCompetitor npc = GetComponent<NPCCompetitor>();
+        return npc == null || !npc.IsEliminated;
+    }
+
+    private bool HasEliminationWriteAuthority()
+    {
+        return NetworkManager != null &&
+               (NetworkManager.DistributedAuthorityMode ? IsOwner : IsServer);
     }
 
     private bool IsWithinArenaHeight()
