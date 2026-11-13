@@ -2014,6 +2014,7 @@ GameObject:
   - component: {fileID: 8435302620866516779}
   - component: {fileID: 2722608077457501448}
   - component: {fileID: 4043105982949538830}
+  - component: {fileID: 6308201283985142721}
   m_Layer: 0
   m_Name: XRI_Network_Player_Avatar
   m_TagString: Untagged
@@ -2286,6 +2287,19 @@ MonoBehaviour:
   - {fileID: 1391211572035196903}
   - {fileID: 6224901726279263050}
   - {fileID: 6588003606183201951}
+--- !u!114 &6308201283985142721
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5358844088564582620}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6d7f0c2e9a1d4e539fabc8608d21be47, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HumanCompetitorElimination
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &5908336471056132768
 GameObject:
   m_ObjectHideFlags: 0

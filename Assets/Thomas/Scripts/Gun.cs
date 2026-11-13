@@ -122,24 +122,35 @@ public class Gun : NetworkBehaviour
             return;
         }
 
-        NPCCompetitor competitor = FindNpcInShotDirection();
-        if (competitor != null && competitor.NetworkObject != null)
+        NetworkObject competitor = FindCompetitorInShotDirection();
+        if (competitor != null && competitor.TryGetComponent(
+                out NPCCompetitor npc))
         {
-            competitor.RequestElimination(GetComponent<NetworkObject>());
+            npc.RequestElimination(GetComponent<NetworkObject>());
+        }
+        else if (competitor != null &&
+                 competitor.TryGetComponent(
+                     out HumanCompetitorElimination humanElimination))
+        {
+            humanElimination.RequestElimination(GetComponent<NetworkObject>());
         }
     }
 
     public bool IsAimedAt(NPCCompetitor competitor)
     {
-        return competitor != null && FindNpcInShotDirection() == competitor;
+        return competitor != null &&
+               FindCompetitorInShotDirection() == competitor.NetworkObject;
     }
 
-    private NPCCompetitor FindNpcInShotDirection()
+    public bool IsAimedAt(XRINetworkPlayer player)
     {
-        if (firePoint == null)
-        {
-            return null;
-        }
+        return player != null &&
+               FindCompetitorInShotDirection() == player.NetworkObject;
+    }
+
+    private NetworkObject FindCompetitorInShotDirection()
+    {
+        if (firePoint == null) return null;
 
         RaycastHit[] hits = Physics.RaycastAll(
             firePoint.position,
@@ -163,7 +174,14 @@ public class Gun : NetworkBehaviour
 
             NPCCompetitor competitor =
                 hit.collider.GetComponentInParent<NPCCompetitor>();
-            return competitor;
+            if (competitor != null)
+            {
+                return competitor.NetworkObject;
+            }
+
+            XRINetworkPlayer player =
+                hit.collider.GetComponentInParent<XRINetworkPlayer>();
+            return player != null ? player.NetworkObject : null;
         }
 
         return null;

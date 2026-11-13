@@ -73,7 +73,7 @@ public class NPCCompetitor : NetworkBehaviour
         NetworkObjectReference causeReference = new(cause);
         if (HasStateWriteAuthority())
         {
-            TryApplyElimination(cause, NetworkManager.LocalClientId);
+            TryApplyElimination(cause, cause.OwnerClientId);
         }
         else
         {

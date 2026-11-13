@@ -227,6 +227,13 @@ public class Bomb : NetworkBehaviour
                IsHolding(competitor.NetworkObject);
     }
 
+    public bool IsHeldBy(XRINetworkPlayer player)
+    {
+        return player != null &&
+               player.NetworkObject != null &&
+               IsHolding(player.NetworkObject);
+    }
+
     public bool IsHolding(NetworkObject competitor)
     {
         return competitor != null &&
@@ -317,9 +324,12 @@ public class Bomb : NetworkBehaviour
         XRINetworkPlayer player = competitor.GetComponent<XRINetworkPlayer>();
         if (player != null)
         {
-            return minigameManager == null ||
-                   player.transform.position.y <=
-                   minigameManager.EliminationHeightThreshold;
+            HumanCompetitorElimination elimination =
+                player.GetComponent<HumanCompetitorElimination>();
+            return (elimination == null || !elimination.IsEliminated) &&
+                   (minigameManager == null ||
+                    player.transform.position.y <=
+                    minigameManager.EliminationHeightThreshold);
         }
 
         NPCCompetitor npc = competitor.GetComponent<NPCCompetitor>();
@@ -449,7 +459,19 @@ public class Bomb : NetworkBehaviour
             NPCCompetitor npc = holder.GetComponent<NPCCompetitor>();
             if (player != null)
             {
-                EliminatePlayerRpc(player.OwnerClientId);
+                HumanCompetitorElimination elimination =
+                    player.GetComponent<HumanCompetitorElimination>();
+                if (elimination == null)
+                {
+                    Debug.LogError(
+                        "Cannot eliminate the bomb holder: HumanCompetitorElimination is missing.",
+                        player
+                    );
+                }
+                else
+                {
+                    elimination.RequestElimination(GetComponent<NetworkObject>());
+                }
             }
             else if (npc != null)
             {
@@ -480,28 +502,6 @@ public class Bomb : NetworkBehaviour
         }
 
         despawnAt = Time.time + 1f;
-    }
-
-    [Rpc(SendTo.Everyone)]
-    private void EliminatePlayerRpc(ulong playerClientId)
-    {
-        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
-        if (localPlayer == null || localPlayer.OwnerClientId != playerClientId)
-        {
-            return;
-        }
-
-        playersweeperthing playerSweeper = FindFirstObjectByType<playersweeperthing>();
-        if (playerSweeper == null)
-        {
-            Debug.LogError(
-                "Cannot return the eliminated bomb holder to the lobby: playersweeperthing was not found.",
-                this
-            );
-            return;
-        }
-
-        playerSweeper.SendPlayerToStart();
     }
 
     private void StartAuthoritySimulation()

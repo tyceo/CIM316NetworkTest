@@ -1,11 +1,12 @@
 using UnityEngine;
+using XRMultiplayer;
 
 public class SwordDetection : MonoBehaviour
 {
     private void OnTriggerEnter(Collider other)
     {
         MinigameSword sword = other.GetComponentInParent<MinigameSword>();
-        if (sword == null &&
+        if (sword == null ||
             other.gameObject.layer != LayerMask.NameToLayer("Sword"))
         {
             return;
@@ -14,7 +15,7 @@ public class SwordDetection : MonoBehaviour
         NPCCompetitor npc = GetComponentInParent<NPCCompetitor>();
         if (npc != null)
         {
-            if (sword != null && sword.NetworkObject != null)
+            if (sword.NetworkObject != null)
             {
                 npc.RequestElimination(sword.NetworkObject);
             }
@@ -22,15 +23,19 @@ public class SwordDetection : MonoBehaviour
             return;
         }
 
-        playersweeperthing playerSweeperThing =
-            FindFirstObjectByType<playersweeperthing>();
-        if (playerSweeperThing != null)
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+        HumanCompetitorElimination elimination = localPlayer != null
+            ? localPlayer.GetComponent<HumanCompetitorElimination>()
+            : null;
+        if (elimination != null &&
+            sword.NetworkObject != null &&
+            sword.NetworkObject.OwnerClientId != localPlayer.OwnerClientId)
         {
-            playerSweeperThing.SendPlayerToStart();
+            elimination.RequestElimination(sword.NetworkObject);
         }
         else
         {
-            Debug.LogWarning("playersweeperthing not found in scene!");
+            Debug.LogWarning("Could not identify the human sword victim or networked sword.", this);
         }
     }
 }

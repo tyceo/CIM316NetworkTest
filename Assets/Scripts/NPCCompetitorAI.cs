@@ -164,7 +164,10 @@ public class NPCCompetitorAI : NetworkBehaviour
         {
             if (player == null || !player.gameObject.activeInHierarchy ||
                 player.NetworkObject == null || !player.NetworkObject.IsSpawned ||
-                player.transform.position.y > GetEliminationHeightThreshold())
+                player.transform.position.y > GetEliminationHeightThreshold() ||
+                (player.TryGetComponent(
+                     out HumanCompetitorElimination elimination) &&
+                 elimination.IsEliminated))
             {
                 continue;
             }
