@@ -31,6 +31,7 @@ public class NPCCompetitorAI : NetworkBehaviour
     private float nextRoamTime;
     private Vector3 roamDestination;
     private bool warnedNoNavMesh;
+    private bool stationary;
 
     public override void OnNetworkSpawn()
     {
@@ -40,10 +41,11 @@ public class NPCCompetitorAI : NetworkBehaviour
         competitor = GetComponent<NPCCompetitor>();
         minigameManager = FindFirstObjectByType<MinigameManager>();
         arenaOrigin = transform.position;
+        stationary = true;
+        StopAutonomousMovement();
 
         if (!HasNpcAuthority())
         {
-            agent.enabled = false;
             return;
         }
 
@@ -61,7 +63,7 @@ public class NPCCompetitorAI : NetworkBehaviour
 
     private void Update()
     {
-        if (!HasNpcAuthority() || agent == null || !agent.enabled)
+        if (stationary || !HasNpcAuthority() || agent == null || !agent.enabled)
         {
             return;
         }
@@ -333,6 +335,35 @@ public class NPCCompetitorAI : NetworkBehaviour
         foreach (Collider bodyCollider in GetComponentsInChildren<Collider>(true))
         {
             bodyCollider.enabled = false;
+        }
+    }
+
+    private void StopAutonomousMovement()
+    {
+        if (agent != null)
+        {
+            if (agent.enabled && agent.isOnNavMesh)
+            {
+                agent.ResetPath();
+                agent.velocity = Vector3.zero;
+            }
+
+            agent.enabled = false;
+        }
+
+        foreach (Animator animator in animators)
+        {
+            animator.applyRootMotion = false;
+            foreach (AnimatorControllerParameter parameter in animator.parameters)
+            {
+                if (parameter.type == AnimatorControllerParameterType.Float &&
+                    (parameter.name == "Speed" ||
+                     parameter.name == "MoveSpeed" ||
+                     parameter.name == "Velocity"))
+                {
+                    animator.SetFloat(parameter.name, 0f);
+                }
+            }
         }
     }
 
