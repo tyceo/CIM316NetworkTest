@@ -24,6 +24,13 @@ public class MinigameManager : NetworkBehaviour
     [SerializeField] private float liftDuration = 3f;
     [SerializeField] private GameObject bombPrefab;
 
+    [SerializeField] private GameObject swordPrefab;
+
+    [Header("Melt Minigame")]
+    [SerializeField] private GameObject torchPrefab;
+    [Tooltip("Offset from each spawn location where its torch appears.")]
+    [SerializeField] private Vector3 torchSpawnOffset = new Vector3(0f, 1f, 0f);
+
     [Header("Round Audio")]
     [SerializeField] private AudioClip victorySound;
     [SerializeField] private AudioClip swordGuitarSound;
@@ -69,16 +76,23 @@ public class MinigameManager : NetworkBehaviour
     private bool isProcessingWin = false;
     private bool isRoundTransitionRunning = false;
 
+    // Positions the guns spawn at (captured from scene objects tagged "flashlight").
+    private List<Vector3> gunSpawnPositions = new List<Vector3>();
+    private List<GameObject> spawnedTorches = new List<GameObject>();
+
+    // Server-side reference to the spawned sword (like spawnedGuns).
     private Dictionary<GameObject, Vector3> flashlightOriginalPositions = new Dictionary<GameObject, Vector3>();
     private Vector3 flashlightHidePosition = new Vector3(220.5f, -73.0199966f, -190f);
     private Coroutine moveFlashlightsCoroutine = null;
 
-    private Vector3 swordOriginalPosition;
-    private GameObject swordObject;
+    // Server-side reference to the spawned sword (like spawnedGuns).
+    private GameObject spawnedSword;
+
+    // Local (per-client) reference used for grab/release pickup messages.
+    private MinigameSword localSword;
     private XRGrabInteractable swordGrabInteractable;
     private bool swordWarningShownForPickup;
     private ulong swordWarningHolderClientId = ulong.MaxValue;
-    private Coroutine moveSwordCoroutine = null;
 
     private Vector3[] swordSpawnPositions = new Vector3[]
     {
@@ -177,7 +191,7 @@ public class MinigameManager : NetworkBehaviour
         }
 
         // ONLY NOW does the selected minigame become active.
-        // Your original ice/flashlight/sword/gun/bomb code reacts to this.
+        //original ice/flashlight/sword/gun/bomb code reacts to this.
         currentMinigame.Value = newMinigame;
 
         isLoadingMinigame.Value = false;
@@ -213,10 +227,11 @@ public class MinigameManager : NetworkBehaviour
         currentMinigame.OnValueChanged += OnMinigameChanged;
         isLoadingMinigame.OnValueChanged += (prev, next) => UpdateMinigameText();
 
-        StoreFlashlightPositions();
-        StoreSwordPosition();
+        //StoreFlashlightPositions(); 
+        StoreGunSpawnPositions();
         UpdateIceCubes();
-        UpdateFlashlights();
+        //UpdateFlashlights();
+        UpdateTorches();
         UpdateSword();
         UpdateGuns();
         UpdateBombs();
@@ -263,7 +278,8 @@ public class MinigameManager : NetworkBehaviour
     void OnMinigameChanged(int previousValue, int newValue)
     {
         UpdateIceCubes();
-        UpdateFlashlights();
+        //UpdateFlashlights();
+        UpdateTorches();
         UpdateSword();
         UpdateGuns();
         UpdateBombs();
@@ -366,19 +382,19 @@ public class MinigameManager : NetworkBehaviour
         }
     }
 
-    void StoreFlashlightPositions()
+    void StoreGunSpawnPositions()
     {
+        gunSpawnPositions.Clear();
+
         GameObject[] flashlights = GameObject.FindGameObjectsWithTag("flashlight");
 
         foreach (GameObject flashlight in flashlights)
         {
-            if (!flashlightOriginalPositions.ContainsKey(flashlight))
-            {
-                flashlightOriginalPositions[flashlight] = flashlight.transform.position;
-            }
+            gunSpawnPositions.Add(flashlight.transform.position);
         }
     }
 
+    /*
     void StoreSwordPosition()
     {
         swordObject = GameObject.Find("Sword");
@@ -402,16 +418,55 @@ public class MinigameManager : NetworkBehaviour
             }
         }
     }
+    */
 
-    private void OnDestroy()
+    public void RegisterSword(MinigameSword sword)
     {
-        if (swordGrabInteractable == null)
+        if (sword == null)
         {
             return;
         }
 
-        swordGrabInteractable.selectEntered.RemoveListener(OnSwordGrabbed);
-        swordGrabInteractable.selectExited.RemoveListener(OnSwordReleased);
+        UnregisterSword(localSword);
+
+        localSword = sword;
+        swordGrabInteractable = sword.GrabInteractable;
+
+        if (swordGrabInteractable != null)
+        {
+            swordGrabInteractable.selectEntered.AddListener(OnSwordGrabbed);
+            swordGrabInteractable.selectExited.AddListener(OnSwordReleased);
+        }
+        else
+        {
+            Debug.LogWarning(
+                "The Sword prefab needs an XRGrabInteractable to show pickup messages.",
+                sword
+            );
+        }
+    }
+
+    public void UnregisterSword(MinigameSword sword)
+    {
+        if (sword == null || sword != localSword)
+        {
+            return;
+        }
+
+        if (swordGrabInteractable != null)
+        {
+            swordGrabInteractable.selectEntered.RemoveListener(OnSwordGrabbed);
+            swordGrabInteractable.selectExited.RemoveListener(OnSwordReleased);
+        }
+
+        localSword = null;
+        swordGrabInteractable = null;
+    }
+
+    public override void OnDestroy()
+    {
+        UnregisterSword(localSword);
+        base.OnDestroy();
     }
 
     private void OnSwordGrabbed(SelectEnterEventArgs args)
@@ -531,24 +586,96 @@ public class MinigameManager : NetworkBehaviour
         }
     }
 
-    void UpdateFlashlights()
+    void UpdateTorches()
     {
-        if (moveFlashlightsCoroutine != null)
+        bool shouldSpawn = currentMinigame.Value == 1;
+
+        if (shouldSpawn)
         {
-            StopCoroutine(moveFlashlightsCoroutine);
+            SpawnTorches();
+        }
+        else
+        {
+            CleanupTorches();
+        }
+    }
+
+    void SpawnTorches()
+    {
+        if (!IsOwner) return;
+
+        if (torchPrefab == null)
+        {
+            Debug.LogWarning("Torch prefab is not assigned!");
+            return;
         }
 
-        moveFlashlightsCoroutine = StartCoroutine(MoveFlashlightsCoroutine());
+        CleanupTorches();
+
+        foreach (Transform spawnLocation in spawnLocations)
+        {
+            if (spawnLocation == null) continue;
+
+            SpawnTorchServerRpc(
+                spawnLocation.position + torchSpawnOffset,
+                torchPrefab.transform.rotation
+            );
+        }
+    }
+
+    [Rpc(SendTo.Server)]
+    void SpawnTorchServerRpc(Vector3 position, Quaternion rotation)
+    {
+        GameObject torch = Instantiate(torchPrefab, position, rotation);
+        NetworkObject networkObject = torch.GetComponent<NetworkObject>();
+
+        if (networkObject != null)
+        {
+            networkObject.Spawn();
+            spawnedTorches.Add(torch);
+        }
+        else
+        {
+            Debug.LogError("Torch prefab doesn't have a NetworkObject component!");
+            Destroy(torch);
+        }
+    }
+
+    void CleanupTorches()
+    {
+        if (!IsOwner) return;
+
+        foreach (GameObject torch in spawnedTorches)
+        {
+            if (torch == null) continue;
+
+            NetworkObject networkObject = torch.GetComponent<NetworkObject>();
+
+            if (networkObject != null && networkObject.IsSpawned)
+            {
+                networkObject.Despawn(true);
+            }
+            else
+            {
+                Destroy(torch);
+            }
+        }
+
+        spawnedTorches.Clear();
     }
 
     void UpdateSword()
     {
-        if (moveSwordCoroutine != null)
-        {
-            StopCoroutine(moveSwordCoroutine);
-        }
+        bool shouldSpawn = currentMinigame.Value == 2;
 
-        moveSwordCoroutine = StartCoroutine(MoveSwordCoroutine());
+        if (shouldSpawn)
+        {
+            SpawnSword();
+        }
+        else
+        {
+            CleanupSword();
+        }
     }
 
     void UpdateGuns()
@@ -564,6 +691,70 @@ public class MinigameManager : NetworkBehaviour
             CleanupGuns();
         }
     }
+
+    void SpawnSword()
+    {
+        if (!IsOwner) return;
+
+        if (swordPrefab == null)
+        {
+            Debug.LogWarning("Sword prefab is not assigned!");
+            return;
+        }
+
+        if (swordSpawnPositions.Length == 0)
+        {
+            Debug.LogWarning("No sword spawn positions defined!");
+            return;
+        }
+
+        CleanupSword();
+
+        int randomIndex = Random.Range(0, swordSpawnPositions.Length);
+        SpawnSwordServerRpc(swordSpawnPositions[randomIndex], swordPrefab.transform.rotation);
+    }
+
+    [Rpc(SendTo.Server)]
+    void SpawnSwordServerRpc(Vector3 position, Quaternion rotation)
+    {
+        GameObject sword = Instantiate(swordPrefab, position, rotation);
+        NetworkObject networkObject = sword.GetComponent<NetworkObject>();
+
+        if (networkObject != null)
+        {
+            networkObject.Spawn();
+            spawnedSword = sword;
+        }
+        else
+        {
+            Debug.LogError("Sword prefab doesn't have a NetworkObject component!");
+            Destroy(sword);
+        }
+    }
+
+    void CleanupSword()
+    {
+        if (!IsOwner) return;
+
+        swordWarningShownForPickup = false;
+        swordWarningHolderClientId = ulong.MaxValue;
+
+        if (spawnedSword == null) return;
+
+        NetworkObject networkObject = spawnedSword.GetComponent<NetworkObject>();
+
+        if (networkObject != null && networkObject.IsSpawned)
+        {
+            networkObject.Despawn(true);
+        }
+        else
+        {
+            Destroy(spawnedSword);
+        }
+
+        spawnedSword = null;
+    }
+
     void UpdateBombs()
     {
         bool shouldSpawn = currentMinigame.Value == 4;
@@ -590,14 +781,23 @@ public class MinigameManager : NetworkBehaviour
 
         CleanupGuns();
 
-        GameObject[] flashlights = GameObject.FindGameObjectsWithTag("flashlight");
-
-        foreach (GameObject flashlight in flashlights)
+        if (gunSpawnPositions.Count > 0)
         {
-            if (flashlightOriginalPositions.ContainsKey(flashlight))
+            foreach (Vector3 spawnPosition in gunSpawnPositions)
             {
-                Vector3 spawnPosition = flashlightOriginalPositions[flashlight];
                 SpawnGunServerRpc(spawnPosition, gunPrefab.transform.rotation);
+            }
+        }
+        else
+        {
+            foreach (Transform spawnLocation in spawnLocations)
+            {
+                if (spawnLocation == null) continue;
+
+                SpawnGunServerRpc(
+                    spawnLocation.position + torchSpawnOffset,
+                    gunPrefab.transform.rotation
+                );
             }
         }
     }
@@ -702,6 +902,7 @@ public class MinigameManager : NetworkBehaviour
         spawnedBombs.Clear();
     }
 
+    /*
     void DropAllFlashlights(GameObject[] flashlights)
     {
         foreach (GameObject flashlight in flashlights)
@@ -721,6 +922,7 @@ public class MinigameManager : NetworkBehaviour
             }
         }
     }
+    
 
     void MoveFlashlightsToPosition(GameObject[] flashlights, bool shouldShow)
     {
@@ -771,70 +973,7 @@ public class MinigameManager : NetworkBehaviour
 
         MoveFlashlightsToPosition(flashlights, shouldShow);
     }
-
-    void DropSword()
-    {
-        if (swordObject == null) return;
-
-        XRGrabInteractable grabInteractable = swordObject.GetComponent<XRGrabInteractable>();
-
-        if (grabInteractable != null && grabInteractable.isSelected)
-        {
-            var interactors = new List<UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor>(grabInteractable.interactorsSelecting);
-
-            foreach (var interactor in interactors)
-            {
-                grabInteractable.interactionManager.SelectExit(interactor, grabInteractable);
-            }
-        }
-    }
-
-    void MoveSwordToPosition(bool shouldShow)
-    {
-        if (swordObject == null) return;
-
-        Rigidbody rb = swordObject.GetComponent<Rigidbody>();
-
-        if (rb != null)
-        {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        }
-
-        if (shouldShow)
-        {
-            int randomIndex = Random.Range(0, swordSpawnPositions.Length);
-            swordObject.transform.position = swordSpawnPositions[randomIndex];
-        }
-        else
-        {
-            swordObject.transform.position = flashlightHidePosition;
-        }
-    }
-
-    IEnumerator MoveSwordCoroutine()
-    {
-        if (swordObject == null) yield break;
-
-        bool shouldShow = currentMinigame.Value == 2;
-
-        yield return new WaitForSeconds(1f);
-
-        DropSword();
-
-        float duration = 1f;
-        float elapsed = 0f;
-
-        while (elapsed < duration)
-        {
-            MoveSwordToPosition(shouldShow);
-            elapsed += Time.deltaTime;
-            yield return null;
-        }
-
-        MoveSwordToPosition(shouldShow);
-    }
-
+    */
 
     private List<XRINetworkPlayer> GetActiveNetworkPlayers()
     {
@@ -954,6 +1093,8 @@ public class MinigameManager : NetworkBehaviour
 
         CleanupGuns();
         CleanupBombs();
+        CleanupSword();
+        CleanupTorches();
 
         ResetAllPlayersRpc();
         yield return new WaitForSeconds(1f);

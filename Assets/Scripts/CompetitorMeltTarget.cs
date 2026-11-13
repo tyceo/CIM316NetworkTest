@@ -234,7 +234,6 @@ public class CompetitorMeltTarget : NetworkBehaviour
             renderer.enabled = shouldShow;
         }
 
-        iceVisual.gameObject.SetActive(shouldShow);
         iceVisual.localScale = originalIceScale * Mathf.Clamp01(iceIntegrity.Value);
     }
 
