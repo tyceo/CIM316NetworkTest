@@ -80,14 +80,6 @@ public class Flashlight : MonoBehaviour
 
         if (Physics.Raycast(origin, direction, out hit, range, targetLayers))
         {
-            CompetitorMeltTarget competitorMeltTarget =
-                hit.collider.GetComponentInParent<CompetitorMeltTarget>();
-            if (competitorMeltTarget != null)
-            {
-                competitorMeltTarget.OnFlashlightHit(origin, direction);
-                return;
-            }
-
             // Check if the hit object has IceShrinking component
             IceShrinking iceShrinking = hit.collider.GetComponentInChildren<IceShrinking>();
             if (iceShrinking != null)

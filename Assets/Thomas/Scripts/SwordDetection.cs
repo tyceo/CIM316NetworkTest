@@ -4,19 +4,33 @@ public class SwordDetection : MonoBehaviour
 {
     private void OnTriggerEnter(Collider other)
     {
-        // Check if the collided object is in the "Sword" layer
-        if (other.gameObject.layer == LayerMask.NameToLayer("Sword"))
+        MinigameSword sword = other.GetComponentInParent<MinigameSword>();
+        if (sword == null &&
+            other.gameObject.layer != LayerMask.NameToLayer("Sword"))
         {
-            playersweeperthing playerSweeperThing = FindObjectOfType<playersweeperthing>();
-            
-            if (playerSweeperThing != null)
+            return;
+        }
+
+        NPCCompetitor npc = GetComponentInParent<NPCCompetitor>();
+        if (npc != null)
+        {
+            if (sword != null && sword.NetworkObject != null)
             {
-                playerSweeperThing.SendPlayerToStart();
+                npc.RequestElimination(sword.NetworkObject);
             }
-            else
-            {
-                Debug.LogWarning("playersweeperthing not found in scene!");
-            }
+
+            return;
+        }
+
+        playersweeperthing playerSweeperThing =
+            FindFirstObjectByType<playersweeperthing>();
+        if (playerSweeperThing != null)
+        {
+            playerSweeperThing.SendPlayerToStart();
+        }
+        else
+        {
+            Debug.LogWarning("playersweeperthing not found in scene!");
         }
     }
 }

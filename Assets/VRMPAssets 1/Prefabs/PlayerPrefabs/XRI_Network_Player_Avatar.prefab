@@ -2014,7 +2014,6 @@ GameObject:
   - component: {fileID: 8435302620866516779}
   - component: {fileID: 2722608077457501448}
   - component: {fileID: 4043105982949538830}
-  - component: {fileID: 251213424723113232}
   m_Layer: 0
   m_Name: XRI_Network_Player_Avatar
   m_TagString: Untagged
@@ -2287,22 +2286,6 @@ MonoBehaviour:
   - {fileID: 1391211572035196903}
   - {fileID: 6224901726279263050}
   - {fileID: 6588003606183201951}
---- !u!114 &251213424723113232
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5358844088564582620}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1db2b5f4292c4a63b908da7773426a37, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CompetitorMeltTarget
-  ShowTopMostFoldoutHeaderGroup: 1
-  iceVisual: {fileID: 8669651751957765043}
-  meltPerSecond: 0.15
-  maximumFlashlightDistance: 10
 --- !u!1 &5908336471056132768
 GameObject:
   m_ObjectHideFlags: 0

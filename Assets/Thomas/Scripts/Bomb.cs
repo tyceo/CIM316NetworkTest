@@ -317,23 +317,13 @@ public class Bomb : NetworkBehaviour
         XRINetworkPlayer player = competitor.GetComponent<XRINetworkPlayer>();
         if (player != null)
         {
-            CompetitorMeltTarget eliminationState =
-                player.GetComponent<CompetitorMeltTarget>();
-            return (eliminationState == null || !eliminationState.IsEliminated) &&
-                   (minigameManager == null ||
-                    player.transform.position.y <=
-                    minigameManager.EliminationHeightThreshold);
+            return minigameManager == null ||
+                   player.transform.position.y <=
+                   minigameManager.EliminationHeightThreshold;
         }
 
         NPCCompetitor npc = competitor.GetComponent<NPCCompetitor>();
-        if (npc == null || npc.IsEliminated)
-        {
-            return false;
-        }
-
-        CompetitorMeltTarget npcEliminationState =
-            npc.GetComponent<CompetitorMeltTarget>();
-        return npcEliminationState == null || !npcEliminationState.IsEliminated;
+        return npc != null && !npc.IsEliminated;
     }
 
     private void CheckForTransfer(NetworkObject holder)
@@ -455,20 +445,22 @@ public class Bomb : NetworkBehaviour
         if (TryGetCurrentHolder(out NetworkObject holder) &&
             IsEligibleCompetitor(holder))
         {
-            CompetitorMeltTarget eliminationState =
-                holder.GetComponent<CompetitorMeltTarget>();
-
-            if (eliminationState == null)
+            XRINetworkPlayer player = holder.GetComponent<XRINetworkPlayer>();
+            NPCCompetitor npc = holder.GetComponent<NPCCompetitor>();
+            if (player != null)
             {
-                Debug.LogError(
-                    $"Cannot eliminate {DescribeCompetitor(holder)}: " +
-                    "CompetitorMeltTarget is missing.",
-                    this
-                );
+                EliminatePlayerRpc(player.OwnerClientId);
+            }
+            else if (npc != null)
+            {
+                npc.RequestElimination(GetComponent<NetworkObject>());
             }
             else
             {
-                eliminationState.EliminateByHotPotato(this);
+                Debug.LogError(
+                    $"Cannot eliminate {DescribeCompetitor(holder)}: unsupported competitor type.",
+                    this
+                );
             }
         }
         else
@@ -488,6 +480,28 @@ public class Bomb : NetworkBehaviour
         }
 
         despawnAt = Time.time + 1f;
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void EliminatePlayerRpc(ulong playerClientId)
+    {
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+        if (localPlayer == null || localPlayer.OwnerClientId != playerClientId)
+        {
+            return;
+        }
+
+        playersweeperthing playerSweeper = FindFirstObjectByType<playersweeperthing>();
+        if (playerSweeper == null)
+        {
+            Debug.LogError(
+                "Cannot return the eliminated bomb holder to the lobby: playersweeperthing was not found.",
+                this
+            );
+            return;
+        }
+
+        playerSweeper.SendPlayerToStart();
     }
 
     private void StartAuthoritySimulation()

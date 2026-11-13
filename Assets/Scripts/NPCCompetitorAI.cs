@@ -26,7 +26,6 @@ public class NPCCompetitorAI : NetworkBehaviour
     private MinigameManager minigameManager;
     private Vector3 arenaOrigin;
     private Transform target;
-    private CompetitorMeltTarget targetMelt;
     private State state;
     private float nextTargetRefresh;
     private float nextRoamTime;
@@ -78,26 +77,21 @@ public class NPCCompetitorAI : NetworkBehaviour
         if (Time.time >= nextTargetRefresh)
         {
             target = FindNearestOpponent();
-            targetMelt = target != null
-                ? target.GetComponentInParent<CompetitorMeltTarget>()
-                : null;
             nextTargetRefresh = Time.time + targetRefreshInterval;
         }
 
         switch (minigame)
         {
             case 1:
+                state = State.Roaming;
+                Roam();
+                break;
+
             case 2:
                 state = target != null ? State.Chasing : State.Roaming;
                 if (state == State.Chasing)
                 {
                     MoveToward(target.position);
-                    if (minigame == 1 && targetMelt != null &&
-                        Vector3.Distance(transform.position, target.position) <= attackRange &&
-                        HasLineOfSightTo(targetMelt))
-                    {
-                        targetMelt.ApplyNpcMelt();
-                    }
                 }
                 else
                 {
@@ -129,7 +123,6 @@ public class NPCCompetitorAI : NetworkBehaviour
                 if (!holdsBomb)
                 {
                     target = null;
-                    targetMelt = null;
                     state = State.Roaming;
                     agent.stoppingDistance = attackRange * 0.8f;
                     Roam();
@@ -172,13 +165,6 @@ public class NPCCompetitorAI : NetworkBehaviour
             if (player == null || !player.gameObject.activeInHierarchy ||
                 player.NetworkObject == null || !player.NetworkObject.IsSpawned ||
                 player.transform.position.y > GetEliminationHeightThreshold())
-            {
-                continue;
-            }
-
-            CompetitorMeltTarget playerMeltTarget =
-                player.GetComponent<CompetitorMeltTarget>();
-            if (playerMeltTarget != null && playerMeltTarget.IsEliminated)
             {
                 continue;
             }
@@ -329,38 +315,6 @@ public class NPCCompetitorAI : NetworkBehaviour
         }
     }
 
-    private bool HasLineOfSightTo(CompetitorMeltTarget targetCompetitor)
-    {
-        Vector3 origin = transform.position + Vector3.up * 1.2f;
-        Vector3 targetPoint = targetCompetitor.transform.position + Vector3.up * 1.8f;
-        Vector3 direction = targetPoint - origin;
-        float distance = direction.magnitude;
-        if (distance <= 0.01f)
-        {
-            return true;
-        }
-
-        RaycastHit[] hits = Physics.RaycastAll(
-                     origin,
-                     direction / distance,
-                     distance,
-                     Physics.DefaultRaycastLayers,
-                     QueryTriggerInteraction.Collide);
-        System.Array.Sort(hits, (first, second) => first.distance.CompareTo(second.distance));
-        foreach (RaycastHit hit in hits)
-        {
-            if (hit.transform == transform || hit.transform.IsChildOf(transform))
-            {
-                continue;
-            }
-
-            return hit.collider.GetComponentInParent<CompetitorMeltTarget>() ==
-                   targetCompetitor;
-        }
-
-        return false;
-    }
-
     private void StopMoving()
     {
         if (agent != null)
@@ -383,7 +337,6 @@ public class NPCCompetitorAI : NetworkBehaviour
     {
         state = State.Eliminated;
         target = null;
-        targetMelt = null;
         StopMoving();
     }
 

@@ -1014,10 +1014,7 @@ public class MinigameManager : NetworkBehaviour
 
         foreach (XRINetworkPlayer player in allPlayers)
         {
-            CompetitorMeltTarget meltTarget =
-                player.GetComponent<CompetitorMeltTarget>();
-            if (player.transform.position.y > heightThreshold ||
-                (meltTarget != null && meltTarget.IsEliminated))
+            if (player.transform.position.y > heightThreshold)
             {
                 eliminatedCompetitors++;
             }
@@ -1242,10 +1239,7 @@ public class MinigameManager : NetworkBehaviour
         int remaining = 0;
         foreach (XRINetworkPlayer player in GetActiveNetworkPlayers())
         {
-            CompetitorMeltTarget meltTarget =
-                player.GetComponent<CompetitorMeltTarget>();
-            if (player.transform.position.y <= heightThreshold &&
-                (meltTarget == null || !meltTarget.IsEliminated))
+            if (player.transform.position.y <= heightThreshold)
             {
                 remaining++;
             }
@@ -1611,10 +1605,7 @@ public class MinigameManager : NetworkBehaviour
 
         foreach (XRINetworkPlayer player in allPlayers)
         {
-            CompetitorMeltTarget meltTarget =
-                player.GetComponent<CompetitorMeltTarget>();
-            if (player.transform.position.y > heightThreshold ||
-                (meltTarget != null && meltTarget.IsEliminated))
+            if (player.transform.position.y > heightThreshold)
             {
                 eliminatedPlayers++;
             }
