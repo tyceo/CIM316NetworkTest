@@ -31,6 +31,7 @@ public class IceShrinking : NetworkBehaviour
 
     private float lastCrackTime = -100f;
     private int lastCrackIndex = -1;
+    private bool eliminationRequested;
 
     void Start()
     {
@@ -114,27 +115,31 @@ public class IceShrinking : NetworkBehaviour
                         return;
                     }
 
+                    if (!IsMeltMinigameActive() || eliminationRequested)
+                    {
+                        transform.localScale = originalScale;
+                        isBeingLit = false;
+                        return;
+                    }
+
                     // Preserve the final crack without overlapping the current clip.
                     if (finalCrackCoroutine == null && IsMeltMinigameActive())
                     {
                         finalCrackCoroutine = StartCoroutine(PlayFinalCrackWhenReady());
                     }
 
-                    playersweeperthing sweeper =
-                        FindObjectOfType<playersweeperthing>();
-
-                    if (sweeper != null)
+                    HumanCompetitorElimination elimination =
+                        GetComponentInParent<HumanCompetitorElimination>();
+                    if (elimination != null)
                     {
-                        sweeper.SendPlayerToStart();
-
-                        Debug.Log(
-                            "Sending player to start"
-                        );
+                        eliminationRequested = true;
+                        elimination.RequestElimination();
                     }
                     else
                     {
                         Debug.LogWarning(
-                            "playersweeperthing not found!"
+                            "HumanCompetitorElimination is missing from the player avatar.",
+                            this
                         );
                     }
 
@@ -258,11 +263,19 @@ public class IceShrinking : NetworkBehaviour
 
         isBeingLit = false;
         lastCrackTime = -100f;
+        eliminationRequested = false;
     }
 
     // Called by the flashlight when its raycast hits the ice.
     public void OnFlashlightHit()
     {
+        if (!IsMeltMinigameActive() ||
+            (GetComponentInParent<HumanCompetitorElimination>() is
+                HumanCompetitorElimination elimination && elimination.IsEliminated))
+        {
+            return;
+        }
+
         isBeingLit = true;
         lastHitTime = Time.time;
     }

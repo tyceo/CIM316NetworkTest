@@ -65,31 +65,32 @@ public static class NPCCompetitorPrefabSetup
             npcPrefab.GetComponent<NetworkTransform>() != null &&
             npcPrefab.GetComponent<NPCCompetitor>() != null &&
             npcPrefab.GetComponent<NPCCompetitorAI>() != null &&
+            npcPrefab.GetComponent<SwordDetection>() != null &&
             npcPrefab.GetComponent<NavMeshAgent>() != null &&
-            npcPrefab.GetComponent<CompetitorMeltTarget>() != null &&
             modelsAssigned &&
-            FindTaggedChild(npcPrefab.transform, "icecube") != null;
+            FindTaggedChild(npcPrefab.transform, "icecube") == null;
         PrefabUtility.UnloadPrefabContents(npcPrefab);
 
         GameObject playerPrefab = PrefabUtility.LoadPrefabContents(PlayerPrefabPath);
+        GameObject playerIce = FindTaggedChild(playerPrefab.transform, "icecube");
         bool playerValid =
             playerPrefab.GetComponent<NetworkObject>() != null &&
             playerPrefab.GetComponent<XRMultiplayer.XRINetworkPlayer>() != null &&
-            playerPrefab.GetComponent<CompetitorMeltTarget>() != null &&
-            FindTaggedChild(playerPrefab.transform, "icecube") != null;
+            playerIce != null &&
+            playerIce.GetComponent<IceShrinking>() != null;
         PrefabUtility.UnloadPrefabContents(playerPrefab);
 
         if (!npcValid || !playerValid)
         {
             Debug.LogError(
-                $"NPC prefab validation failed. NPC valid={npcValid}; player MELT target valid={playerValid}."
+                $"NPC prefab validation failed. NPC valid={npcValid}; player ice valid={playerValid}."
             );
             return;
         }
 
         Debug.Log(
             "NPC prefab validation passed: NetworkObject, NetworkTransform, competitor, AI, " +
-            "NavMeshAgent, three synchronized model references, and MELT targets are configured."
+            "sword hitbox, NavMeshAgent, three synchronized models, and human IceShrinking are configured."
         );
     }
 
@@ -172,6 +173,12 @@ public static class NPCCompetitorPrefabSetup
             changed = true;
         }
 
+        if (prefab.GetComponent<SwordDetection>() == null)
+        {
+            prefab.AddComponent<SwordDetection>();
+            changed = true;
+        }
+
         if (ConfigureCharacterVisuals(prefab, visuals))
         {
             changed = true;
@@ -195,57 +202,12 @@ public static class NPCCompetitorPrefabSetup
                 renderer.enabled = false;
             }
 
-            if (FindTaggedChild(prefab.transform, "icecube") == null)
-            {
-                GameObject playerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
-                GameObject sourceIce = playerPrefab != null
-                    ? FindTaggedChild(playerPrefab.transform, "icecube")
-                    : null;
-                MeshFilter sourceMesh = sourceIce != null
-                    ? sourceIce.GetComponent<MeshFilter>()
-                    : null;
-                MeshRenderer sourceRenderer = sourceIce != null
-                    ? sourceIce.GetComponent<MeshRenderer>()
-                    : null;
-                if (sourceMesh == null || sourceRenderer == null)
-                {
-                    Debug.LogError("Could not locate the existing player ice visual to reuse.");
-                    PrefabUtility.UnloadPrefabContents(prefab);
-                    return;
-                }
-
-                GameObject ice = new GameObject("icecube");
-                ice.tag = "icecube";
-                ice.transform.SetParent(head, false);
-                ice.transform.localPosition = new Vector3(0f, 0.35f, 0f);
-                ice.transform.localRotation = Quaternion.identity;
-                ice.transform.localScale = Vector3.one * 0.42f;
-                ice.AddComponent<MeshFilter>().sharedMesh = sourceMesh.sharedMesh;
-                ice.AddComponent<MeshRenderer>().sharedMaterials = sourceRenderer.sharedMaterials;
-                SphereCollider iceCollider = ice.AddComponent<SphereCollider>();
-                iceCollider.radius = 0.5f;
-                iceCollider.isTrigger = true;
-                ice.SetActive(false);
-                changed = true;
-            }
-        }
-
-        if (prefab.GetComponent<CompetitorMeltTarget>() == null)
-        {
-            CompetitorMeltTarget meltTarget = prefab.AddComponent<CompetitorMeltTarget>();
-            SerializedObject meltSerialized = new SerializedObject(meltTarget);
-            GameObject ice = FindTaggedChild(prefab.transform, "icecube");
-            meltSerialized.FindProperty("iceVisual").objectReferenceValue =
-                ice != null ? ice.transform : null;
-            meltSerialized.FindProperty("meltPerSecond").floatValue = 0.35f;
-            meltSerialized.ApplyModifiedPropertiesWithoutUndo();
-            changed = true;
         }
 
         if (changed)
         {
             PrefabUtility.SaveAsPrefabAsset(prefab, NpcPrefabPath);
-            Debug.Log("Configured NPC competitor prefab with models, AI, and MELT ice.");
+            Debug.Log("Configured NPC competitor prefab with models and AI.");
         }
 
         PrefabUtility.UnloadPrefabContents(prefab);
@@ -254,28 +216,20 @@ public static class NPCCompetitorPrefabSetup
     private static void ConfigurePlayerPrefab()
     {
         GameObject prefab = PrefabUtility.LoadPrefabContents(PlayerPrefabPath);
-        if (prefab.GetComponent<CompetitorMeltTarget>() != null)
+        GameObject ice = FindTaggedChild(prefab.transform, "icecube");
+        if (ice == null || ice.GetComponent<IceShrinking>() == null)
         {
+            Debug.LogError("The player prefab must retain its original IceShrinking ice child.");
             PrefabUtility.UnloadPrefabContents(prefab);
             return;
         }
 
-        CompetitorMeltTarget meltTarget = prefab.AddComponent<CompetitorMeltTarget>();
-        GameObject ice = FindTaggedChild(prefab.transform, "icecube");
-        SerializedObject meltSerialized = new SerializedObject(meltTarget);
-        meltSerialized.FindProperty("iceVisual").objectReferenceValue =
-            ice != null ? ice.transform : null;
-        meltSerialized.FindProperty("meltPerSecond").floatValue = 0.15f;
-        meltSerialized.FindProperty("maximumFlashlightDistance").floatValue = 10f;
-        meltSerialized.ApplyModifiedPropertiesWithoutUndo();
-
-        PrefabUtility.SaveAsPrefabAsset(prefab, PlayerPrefabPath);
         PrefabUtility.UnloadPrefabContents(prefab);
-        Debug.Log("Added server-authoritative MELT target to the network player prefab.");
     }
 
     private static void OrientAndScaleModel(GameObject model)
     {
+        Vector3 importedScale = model.transform.localScale;
         model.transform.localPosition = Vector3.zero;
         model.transform.localRotation = Quaternion.identity;
 
@@ -303,7 +257,7 @@ public static class NPCCompetitorPrefabSetup
 
         bounds = GetRenderBounds(model);
         float uniformScale = CharacterHeight / Mathf.Max(bounds.size.y, 0.01f);
-        model.transform.localScale = Vector3.one * uniformScale;
+        model.transform.localScale = importedScale * uniformScale;
         model.transform.localPosition = Vector3.up * (-bounds.min.y * uniformScale);
     }
 
@@ -342,12 +296,24 @@ public static class NPCCompetitorPrefabSetup
                     return changed;
                 }
 
-                OrientAndScaleModel(instance);
                 existingModel = instance.transform;
                 changed = true;
             }
 
             models[i] = existingModel.gameObject;
+            Vector3 previousPosition = existingModel.localPosition;
+            Quaternion previousRotation = existingModel.localRotation;
+            Vector3 previousScale = existingModel.localScale;
+            existingModel.gameObject.SetActive(true);
+            existingModel.localScale = modelPrefab.transform.localScale;
+            OrientAndScaleModel(models[i]);
+            if (previousPosition != existingModel.localPosition ||
+                Quaternion.Angle(previousRotation, existingModel.localRotation) > 0.001f ||
+                previousScale != existingModel.localScale)
+            {
+                changed = true;
+            }
+
             bool shouldBeActive = i == 0;
             if (models[i].activeSelf != shouldBeActive)
             {

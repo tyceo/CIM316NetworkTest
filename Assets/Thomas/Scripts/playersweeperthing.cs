@@ -5,6 +5,8 @@ public class playersweeperthing : MonoBehaviour
 {
     [SerializeField] private Transform teleportDestination;
 
+    public Transform LobbyDestination => teleportDestination;
+
     private void OnTriggerEnter(Collider other)
     {
         // Check if the collided object is called "Pole"
@@ -26,26 +28,39 @@ public class playersweeperthing : MonoBehaviour
             }
         }
         
-        // Check if the collided object name contains "Bad"
-        if (other.gameObject.name.Contains("Bad"))
-        {
-            SendPlayerToStart();
-        }
     }
     
     public void SendPlayerToStart()
     {
-        TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
-        
-        if (teleportationProvider != null && teleportDestination != null)
+        TrySendPlayerToStart();
+    }
+
+    public bool TrySendPlayerToStart()
+    {
+        if (teleportDestination == null)
         {
-            TeleportRequest teleportRequest = new TeleportRequest
-            {
-                destinationPosition = new Vector3(259.988007f,157.294006f,-123.014999f),
-                destinationRotation = teleportDestination.rotation
-            };
-            Debug.Log("Sending player to start done");
-            teleportationProvider.QueueTeleportRequest(teleportRequest);
+            Debug.LogError("Lobby teleport destination is not assigned!", this);
+            return false;
         }
+
+        TeleportationProvider teleportationProvider = FindAnyObjectByType<TeleportationProvider>();
+        if (teleportationProvider == null)
+        {
+            Debug.LogError("TeleportationProvider not found!", this);
+            return false;
+        }
+
+        TeleportRequest teleportRequest = new TeleportRequest
+        {
+            destinationPosition = teleportDestination.position,
+            destinationRotation = teleportDestination.rotation
+        };
+        bool queued = teleportationProvider.QueueTeleportRequest(teleportRequest);
+        if (!queued)
+        {
+            Debug.LogWarning("Lobby teleport request could not be queued.", this);
+        }
+
+        return queued;
     }
 }

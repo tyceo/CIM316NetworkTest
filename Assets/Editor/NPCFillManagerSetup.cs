@@ -4,7 +4,10 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 using XRMultiplayer;
+using TMPro;
 
 public static class NPCFillManagerSetup
 {
@@ -224,7 +227,6 @@ public static class NPCFillManagerSetup
             }
 
             SerializedObject fillManagerObject = new(fillManager);
-            fillManagerObject.FindProperty("targetCompetitorCount").intValue = 4;
             fillManagerObject.FindProperty("npcPrefab").objectReferenceValue = npcPrefab;
 
             SerializedObject minigameManagerObject = new(minigameManager);
@@ -241,6 +243,18 @@ public static class NPCFillManagerSetup
             }
 
             fillManagerObject.ApplyModifiedProperties();
+
+            NPCCountLobbySlider countSlider =
+                minigameManager.GetComponent<NPCCountLobbySlider>();
+            if (countSlider == null)
+            {
+                countSlider = Undo.AddComponent<NPCCountLobbySlider>(
+                    minigameManager.gameObject
+                );
+            }
+
+            BuildLobbySlider(scene, countSlider, minigameManager);
+
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
         }
@@ -248,6 +262,266 @@ public static class NPCFillManagerSetup
         {
             EditorSceneManager.CloseScene(scene, true);
         }
+    }
+
+    private static void BuildLobbySlider(
+        Scene scene,
+        NPCCountLobbySlider countSlider,
+        MinigameManager minigameManager)
+    {
+        Button startButton = null;
+        TMP_Text startButtonText = null;
+        foreach (GameObject root in scene.GetRootGameObjects())
+        {
+            foreach (Button button in root.GetComponentsInChildren<Button>(true))
+            {
+                TMP_Text text = button.GetComponentInChildren<TMP_Text>(true);
+                if (text == null || !text.text.Contains("Start Game with"))
+                {
+                    continue;
+                }
+
+                startButton = button;
+                startButtonText = text;
+                break;
+            }
+
+            if (startButton != null)
+            {
+                break;
+            }
+        }
+
+        if (startButton == null || startButtonText == null)
+        {
+            throw new System.InvalidOperationException(
+                "Could not find the lobby Start Game button and its TextMeshPro label in BasicScene."
+            );
+        }
+
+        RectTransform startRect = startButton.transform as RectTransform;
+        RectTransform canvasParent = startRect != null
+            ? startRect.parent as RectTransform
+            : null;
+        Canvas canvas = startButton.GetComponentInParent<Canvas>();
+        if (startRect == null ||
+            canvasParent == null ||
+            canvas == null ||
+            canvas.renderMode != RenderMode.WorldSpace)
+        {
+            throw new System.InvalidOperationException(
+                "The lobby Start Game button must be under the existing world-space lobby Canvas."
+            );
+        }
+
+        if (canvas.GetComponent<TrackedDeviceGraphicRaycaster>() == null)
+        {
+            throw new System.InvalidOperationException(
+                "The lobby Canvas has no TrackedDeviceGraphicRaycaster for XR UI interaction."
+            );
+        }
+
+        Transform existingPanel = canvasParent.Find("NPC Competitors Panel");
+        if (existingPanel != null)
+        {
+            Undo.DestroyObjectImmediate(existingPanel.gameObject);
+        }
+
+        const float panelWidth = 180f;
+        const float panelHeight = 112f;
+        GameObject panelObject = new(
+            "NPC Competitors Panel",
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
+        SceneManager.MoveGameObjectToScene(panelObject, scene);
+        Undo.RegisterCreatedObjectUndo(panelObject, "Create NPC competitor slider");
+        panelObject.layer = canvas.gameObject.layer;
+        panelObject.transform.SetParent(canvasParent, false);
+
+        RectTransform panelRect = panelObject.GetComponent<RectTransform>();
+        panelRect.anchorMin = startRect.anchorMin;
+        panelRect.anchorMax = startRect.anchorMax;
+        panelRect.pivot = startRect.pivot;
+        panelRect.sizeDelta = new Vector2(panelWidth, panelHeight);
+        panelRect.localScale = startRect.localScale;
+        float buttonHeight = startRect.rect.height * Mathf.Abs(startRect.localScale.y);
+        float panelHalfHeight = panelHeight * Mathf.Abs(startRect.localScale.y) * 0.5f;
+        panelRect.anchoredPosition = startRect.anchoredPosition +
+            new Vector2(
+                0f,
+                -buttonHeight * 0.5f - 0.12f - panelHalfHeight
+            );
+
+        Image panelImage = panelObject.GetComponent<Image>();
+        panelImage.color = startButton.targetGraphic != null
+            ? startButton.targetGraphic.color
+            : new Color(0.08f, 0.3f, 0.72f, 1f);
+        panelImage.raycastTarget = false;
+
+        TextMeshProUGUI countLabel = CreateLabel(
+            panelRect,
+            "NPC Count Label",
+            startButtonText,
+            "NPC COMPETITORS: 0",
+            new Vector2(0f, 33f),
+            new Vector2(170f, 28f),
+            18f
+        );
+        countLabel.fontStyle = FontStyles.Bold;
+
+        GameObject sliderObject = new(
+            "NPC Count Slider",
+            typeof(RectTransform),
+            typeof(Slider)
+        );
+        sliderObject.layer = panelObject.layer;
+        sliderObject.transform.SetParent(panelRect, false);
+        RectTransform sliderRect = sliderObject.GetComponent<RectTransform>();
+        SetRectTransform(
+            sliderRect,
+            Vector2.zero,
+            new Vector2(150f, 30f),
+            new Vector2(0.5f, 0.5f)
+        );
+
+        RectTransform trackRect = CreateSliderImage(
+            sliderRect,
+            "Track",
+            new Color(0.08f, 0.16f, 0.34f, 1f),
+            new Vector2(0f, 0.35f),
+            new Vector2(1f, 0.65f),
+            new Vector2(-24f, 0f),
+            true
+        );
+        trackRect.SetAsFirstSibling();
+
+        RectTransform fillRect = CreateSliderImage(
+            sliderRect,
+            "Fill",
+            new Color(0.35f, 0.82f, 1f, 1f),
+            new Vector2(0f, 0.35f),
+            new Vector2(0f, 0.65f),
+            Vector2.zero,
+            false
+        );
+        RectTransform handleRect = CreateSliderImage(
+            sliderRect,
+            "Handle",
+            Color.white,
+            new Vector2(0f, 0.05f),
+            new Vector2(0f, 0.95f),
+            new Vector2(24f, 0f),
+            true
+        );
+
+        Slider slider = sliderObject.GetComponent<Slider>();
+        slider.fillRect = fillRect;
+        slider.handleRect = handleRect;
+        slider.targetGraphic = handleRect.GetComponent<Image>();
+        slider.direction = Slider.Direction.LeftToRight;
+        slider.minValue = 0f;
+        slider.maxValue = 3f;
+        slider.wholeNumbers = true;
+        slider.value = 0f;
+        slider.navigation = new Navigation { mode = Navigation.Mode.None };
+
+        const float markerSpacing = 42f;
+        for (int i = 0; i <= 3; i++)
+        {
+            CreateLabel(
+                panelRect,
+                $"NPC Count Mark {i}",
+                startButtonText,
+                i.ToString(),
+                new Vector2((i - 1.5f) * markerSpacing, -38f),
+                new Vector2(24f, 20f),
+                18f
+            );
+        }
+
+        SerializedObject sliderComponent = new(countSlider);
+        sliderComponent.FindProperty("npcFillManager").objectReferenceValue =
+            minigameManager.GetComponent<NPCFillManager>();
+        sliderComponent.FindProperty("slider").objectReferenceValue = slider;
+        sliderComponent.FindProperty("countLabel").objectReferenceValue = countLabel;
+        sliderComponent.ApplyModifiedProperties();
+    }
+
+    private static TextMeshProUGUI CreateLabel(
+        RectTransform parent,
+        string objectName,
+        TMP_Text sourceText,
+        string text,
+        Vector2 position,
+        Vector2 size,
+        float fontSize)
+    {
+        GameObject labelObject = new(
+            objectName,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(TextMeshProUGUI)
+        );
+        labelObject.layer = parent.gameObject.layer;
+        labelObject.transform.SetParent(parent, false);
+        RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+        SetRectTransform(labelRect, position, size, new Vector2(0.5f, 0.5f));
+
+        TextMeshProUGUI label = labelObject.GetComponent<TextMeshProUGUI>();
+        label.font = sourceText.font;
+        label.fontSharedMaterial = sourceText.fontSharedMaterial;
+        label.fontSize = fontSize;
+        label.color = Color.white;
+        label.alignment = TextAlignmentOptions.Center;
+        label.text = text;
+        label.raycastTarget = false;
+        label.enableAutoSizing = false;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        return label;
+    }
+
+    private static RectTransform CreateSliderImage(
+        RectTransform parent,
+        string objectName,
+        Color color,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        Vector2 size,
+        bool raycastTarget)
+    {
+        GameObject imageObject = new(
+            objectName,
+            typeof(RectTransform),
+            typeof(CanvasRenderer),
+            typeof(Image)
+        );
+        imageObject.layer = parent.gameObject.layer;
+        imageObject.transform.SetParent(parent, false);
+        RectTransform rect = imageObject.GetComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.sizeDelta = size;
+
+        Image image = imageObject.GetComponent<Image>();
+        image.color = color;
+        image.raycastTarget = raycastTarget;
+        return rect;
+    }
+
+    private static void SetRectTransform(
+        RectTransform rect,
+        Vector2 position,
+        Vector2 size,
+        Vector2 anchor)
+    {
+        rect.anchorMin = anchor;
+        rect.anchorMax = anchor;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
     }
 
     private static T FindInScene<T>(Scene scene) where T : Component

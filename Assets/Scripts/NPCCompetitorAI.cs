@@ -26,12 +26,12 @@ public class NPCCompetitorAI : NetworkBehaviour
     private MinigameManager minigameManager;
     private Vector3 arenaOrigin;
     private Transform target;
-    private CompetitorMeltTarget targetMelt;
     private State state;
     private float nextTargetRefresh;
     private float nextRoamTime;
     private Vector3 roamDestination;
     private bool warnedNoNavMesh;
+    private bool stationary;
 
     public override void OnNetworkSpawn()
     {
@@ -41,10 +41,17 @@ public class NPCCompetitorAI : NetworkBehaviour
         competitor = GetComponent<NPCCompetitor>();
         minigameManager = FindFirstObjectByType<MinigameManager>();
         arenaOrigin = transform.position;
+        stationary = true;
+        StopAutonomousMovement();
 
-        if (!HasAuthority())
+        if (!HasNpcAuthority())
         {
-            agent.enabled = false;
+            return;
+        }
+
+        if (competitor != null && competitor.IsEliminated)
+        {
+            StopForElimination();
             return;
         }
 
@@ -56,7 +63,7 @@ public class NPCCompetitorAI : NetworkBehaviour
 
     private void Update()
     {
-        if (!HasAuthority() || agent == null || !agent.enabled)
+        if (stationary || !HasNpcAuthority() || agent == null || !agent.enabled)
         {
             return;
         }
@@ -72,26 +79,21 @@ public class NPCCompetitorAI : NetworkBehaviour
         if (Time.time >= nextTargetRefresh)
         {
             target = FindNearestOpponent();
-            targetMelt = target != null
-                ? target.GetComponentInParent<CompetitorMeltTarget>()
-                : null;
             nextTargetRefresh = Time.time + targetRefreshInterval;
         }
 
         switch (minigame)
         {
             case 1:
+                state = State.Roaming;
+                Roam();
+                break;
+
             case 2:
                 state = target != null ? State.Chasing : State.Roaming;
                 if (state == State.Chasing)
                 {
                     MoveToward(target.position);
-                    if (minigame == 1 && targetMelt != null &&
-                        Vector3.Distance(transform.position, target.position) <= attackRange &&
-                        HasLineOfSightTo(targetMelt))
-                    {
-                        targetMelt.ApplyNpcMelt();
-                    }
                 }
                 else
                 {
@@ -116,6 +118,23 @@ public class NPCCompetitorAI : NetworkBehaviour
                 break;
 
             case 4:
+                Bomb bomb = FindFirstObjectByType<Bomb>();
+                bool holdsBomb = bomb != null &&
+                                 competitor != null &&
+                                 bomb.IsHeldBy(competitor);
+                if (!holdsBomb)
+                {
+                    target = null;
+                    state = State.Roaming;
+                    agent.stoppingDistance = attackRange * 0.8f;
+                    Roam();
+                    break;
+                }
+
+                agent.stoppingDistance = Mathf.Min(
+                    attackRange * 0.5f,
+                    bomb.TransferDistance * 0.5f
+                );
                 state = target != null ? State.Chasing : State.Roaming;
                 if (state == State.Chasing)
                 {
@@ -146,14 +165,11 @@ public class NPCCompetitorAI : NetworkBehaviour
                  FindObjectsByType<XRINetworkPlayer>(FindObjectsSortMode.None))
         {
             if (player == null || !player.gameObject.activeInHierarchy ||
-                player.transform.position.y > GetEliminationHeightThreshold())
-            {
-                continue;
-            }
-
-            CompetitorMeltTarget playerMeltTarget =
-                player.GetComponent<CompetitorMeltTarget>();
-            if (playerMeltTarget != null && playerMeltTarget.IsEliminated)
+                player.NetworkObject == null || !player.NetworkObject.IsSpawned ||
+                player.transform.position.y > GetEliminationHeightThreshold() ||
+                (player.TryGetComponent(
+                     out HumanCompetitorElimination elimination) &&
+                 elimination.IsEliminated))
             {
                 continue;
             }
@@ -304,54 +320,61 @@ public class NPCCompetitorAI : NetworkBehaviour
         }
     }
 
-    private bool HasLineOfSightTo(CompetitorMeltTarget targetCompetitor)
-    {
-        Vector3 origin = transform.position + Vector3.up * 1.2f;
-        Vector3 targetPoint = targetCompetitor.transform.position + Vector3.up * 1.8f;
-        Vector3 direction = targetPoint - origin;
-        float distance = direction.magnitude;
-        if (distance <= 0.01f)
-        {
-            return true;
-        }
-
-        RaycastHit[] hits = Physics.RaycastAll(
-                     origin,
-                     direction / distance,
-                     distance,
-                     Physics.DefaultRaycastLayers,
-                     QueryTriggerInteraction.Collide);
-        System.Array.Sort(hits, (first, second) => first.distance.CompareTo(second.distance));
-        foreach (RaycastHit hit in hits)
-        {
-            if (hit.transform == transform || hit.transform.IsChildOf(transform))
-            {
-                continue;
-            }
-
-            return hit.collider.GetComponentInParent<CompetitorMeltTarget>() ==
-                   targetCompetitor;
-        }
-
-        return false;
-    }
-
     private void StopMoving()
     {
-        if (agent.enabled && agent.isOnNavMesh)
+        if (agent != null)
         {
-            agent.ResetPath();
+            if (agent.enabled && agent.isOnNavMesh)
+            {
+                agent.ResetPath();
+            }
+
+            agent.enabled = false;
         }
 
-        agent.enabled = false;
-        Collider bodyCollider = GetComponent<Collider>();
-        if (bodyCollider != null)
+        foreach (Collider bodyCollider in GetComponentsInChildren<Collider>(true))
         {
             bodyCollider.enabled = false;
         }
     }
 
-    private bool HasAuthority()
+    private void StopAutonomousMovement()
+    {
+        if (agent != null)
+        {
+            if (agent.enabled && agent.isOnNavMesh)
+            {
+                agent.ResetPath();
+                agent.velocity = Vector3.zero;
+            }
+
+            agent.enabled = false;
+        }
+
+        foreach (Animator animator in animators)
+        {
+            animator.applyRootMotion = false;
+            foreach (AnimatorControllerParameter parameter in animator.parameters)
+            {
+                if (parameter.type == AnimatorControllerParameterType.Float &&
+                    (parameter.name == "Speed" ||
+                     parameter.name == "MoveSpeed" ||
+                     parameter.name == "Velocity"))
+                {
+                    animator.SetFloat(parameter.name, 0f);
+                }
+            }
+        }
+    }
+
+    public void StopForElimination()
+    {
+        state = State.Eliminated;
+        target = null;
+        StopMoving();
+    }
+
+    private bool HasNpcAuthority()
     {
         return IsServer ||
                (NetworkManager != null &&

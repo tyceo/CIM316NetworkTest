@@ -550,7 +550,7 @@ public class MinigameManager : NetworkBehaviour
     {
         XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
         if (localPlayer == null ||
-            localPlayer.transform.position.y > heightThreshold ||
+            IsHumanEliminated(localPlayer) ||
             UIManager.Instance == null)
         {
             return;
@@ -1014,10 +1014,7 @@ public class MinigameManager : NetworkBehaviour
 
         foreach (XRINetworkPlayer player in allPlayers)
         {
-            CompetitorMeltTarget meltTarget =
-                player.GetComponent<CompetitorMeltTarget>();
-            if (player.transform.position.y > heightThreshold ||
-                (meltTarget != null && meltTarget.IsEliminated))
+            if (IsHumanEliminated(player))
             {
                 eliminatedCompetitors++;
             }
@@ -1136,6 +1133,7 @@ public class MinigameManager : NetworkBehaviour
         isLoadingMinigame.Value = false;
         shouldHideObject.Value = false;
         minigameRunning.Value = false;
+        ResetHumanEliminationStatesRpc();
 
         NPCFillManager npcFillManager = GetComponent<NPCFillManager>();
         if (npcFillManager != null)
@@ -1242,10 +1240,7 @@ public class MinigameManager : NetworkBehaviour
         int remaining = 0;
         foreach (XRINetworkPlayer player in GetActiveNetworkPlayers())
         {
-            CompetitorMeltTarget meltTarget =
-                player.GetComponent<CompetitorMeltTarget>();
-            if (player.transform.position.y <= heightThreshold &&
-                (meltTarget == null || !meltTarget.IsEliminated))
+            if (!IsHumanEliminated(player))
             {
                 remaining++;
             }
@@ -1349,6 +1344,11 @@ public class MinigameManager : NetworkBehaviour
 
         for (int i = 0; i < allPlayers.Length; i++)
         {
+            if (IsHumanMarkedEliminated(allPlayers[i]))
+            {
+                continue;
+            }
+
             int spawnIndex = i < spawnLocations.Length ? i : 0;
             TeleportPlayerRpc(allPlayers[i].OwnerClientId, spawnIndex);
         }
@@ -1357,6 +1357,39 @@ public class MinigameManager : NetworkBehaviour
         {
             shouldHideObject.Value = false;
         }
+    }
+
+    [Rpc(SendTo.Everyone, InvokePermission = RpcInvokePermission.Owner)]
+    private void ResetHumanEliminationStatesRpc()
+    {
+        XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
+        if (localPlayer != null &&
+            localPlayer.TryGetComponent(
+                out HumanCompetitorElimination elimination))
+        {
+            elimination.ResetForNewMatch();
+        }
+    }
+
+    private bool IsHumanEliminated(XRINetworkPlayer player)
+    {
+        if (player == null)
+        {
+            return true;
+        }
+
+        HumanCompetitorElimination elimination =
+            player.GetComponent<HumanCompetitorElimination>();
+        return (elimination != null && elimination.IsEliminated) ||
+               player.transform.position.y > heightThreshold;
+    }
+
+    private static bool IsHumanMarkedEliminated(XRINetworkPlayer player)
+    {
+        return player != null &&
+               player.TryGetComponent(
+                   out HumanCompetitorElimination elimination) &&
+               elimination.IsEliminated;
     }
 
     [Rpc(SendTo.Everyone)]
@@ -1429,8 +1462,7 @@ public class MinigameManager : NetworkBehaviour
 
         XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
 
-        if (localPlayer != null &&
-            localPlayer.transform.position.y > heightThreshold)
+        if (localPlayer != null && IsHumanEliminated(localPlayer))
         {
             UIManager.Instance.ShowMessageNoTimer(
                 "YOU ARE ELIMINATED\nGAME ONGOING"
@@ -1450,8 +1482,7 @@ public class MinigameManager : NetworkBehaviour
 
         XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
 
-        if (localPlayer != null &&
-            localPlayer.transform.position.y > heightThreshold)
+        if (localPlayer != null && IsHumanEliminated(localPlayer))
         {
             UIManager.Instance.ShowMessageNoTimer(
                 "YOU ARE ELIMINATED\nGAME ONGOING"
@@ -1475,8 +1506,7 @@ public class MinigameManager : NetworkBehaviour
 
         XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
 
-        if (localPlayer != null &&
-            localPlayer.transform.position.y > heightThreshold)
+        if (localPlayer != null && IsHumanEliminated(localPlayer))
         {
             UIManager.Instance.ShowMessageNoTimer(
                 "YOU ARE ELIMINATED\nGAME ONGOING"
@@ -1511,8 +1541,7 @@ public class MinigameManager : NetworkBehaviour
 
         XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
 
-        if (localPlayer != null &&
-            localPlayer.transform.position.y <= heightThreshold)
+        if (localPlayer != null && !IsHumanEliminated(localPlayer))
         {
             UIManager.Instance.ShowMessage("YOU WIN!", 3f);
             PlayVictorySound();
@@ -1562,7 +1591,7 @@ public class MinigameManager : NetworkBehaviour
 
             if (minigameName == "SWORD" &&
                 (localPlayer == null ||
-                 localPlayer.transform.position.y <= heightThreshold))
+                 !IsHumanEliminated(localPlayer)))
             {
                 PlaySwordGuitarSound();
             }
@@ -1611,10 +1640,7 @@ public class MinigameManager : NetworkBehaviour
 
         foreach (XRINetworkPlayer player in allPlayers)
         {
-            CompetitorMeltTarget meltTarget =
-                player.GetComponent<CompetitorMeltTarget>();
-            if (player.transform.position.y > heightThreshold ||
-                (meltTarget != null && meltTarget.IsEliminated))
+            if (IsHumanEliminated(player))
             {
                 eliminatedPlayers++;
             }
@@ -1787,8 +1813,7 @@ public class MinigameManager : NetworkBehaviour
     {
         XRINetworkPlayer localPlayer = XRINetworkPlayer.LocalPlayer;
 
-        if (localPlayer != null &&
-            localPlayer.transform.position.y > heightThreshold)
+        if (localPlayer != null && IsHumanEliminated(localPlayer))
         {
             PlayMusic(calmMusic, calmMusicVolume);
         }
